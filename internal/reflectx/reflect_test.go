@@ -18,6 +18,10 @@ func intval(v reflect.Value) int {
 	return v.Interface().(int)
 }
 
+func strval(v reflect.Value) string {
+	return v.Interface().(string)
+}
+
 func TestBasic(t *testing.T) {
 	type Foo struct {
 		A int
@@ -144,4 +148,65 @@ func TestBasicEmbeddedWithTags(t *testing.T) {
 
 	v = m.FieldByName(zv, "b")
 	assert.Equal(t, z.B, intval(v))
+}
+
+func TestBasicEmbeddedWithSameName(t *testing.T) {
+	type (
+		Foo struct {
+			A   int `db:"a"`
+			Foo int `db:"Foo"` // Same name as the embedded struct
+		}
+		FooExt struct {
+			Foo
+			B int `db:"b"`
+		}
+	)
+	z := FooExt{
+		Foo: Foo{
+			A:   1,
+			Foo: 3,
+		},
+		B: 2,
+	}
+	zv := reflect.ValueOf(z)
+
+	m := NewMapper("db")
+	fields := m.TypeMap(reflect.TypeOf(z))
+	assert.Len(t, fields.Index, 4, "number of fields")
+
+	v := m.FieldByName(zv, "a")
+	assert.Equal(t, z.A, intval(v)) // the dominant field
+
+	v = m.FieldByName(zv, "b")
+	assert.Equal(t, z.B, intval(v))
+
+	v = m.FieldByName(zv, "Foo")
+	assert.Equal(t, z.Foo.Foo, intval(v))
+}
+
+func TestFlatTags(t *testing.T) {
+	type (
+		Asset struct {
+			Title string `db:"title"`
+		}
+		Post struct {
+			Author string `db:"author,required"`
+			Asset  Asset  `db:""`
+		}
+	)
+	z := Post{
+		Author: "Joe",
+		Asset: Asset{
+			Title: "Hello",
+		},
+	}
+	zv := reflect.ValueOf(z)
+
+	m := NewMapper("db")
+
+	v := m.FieldByName(zv, "author")
+	assert.Equal(t, z.Author, strval(v))
+
+	v = m.FieldByName(zv, "title")
+	assert.Equal(t, z.Asset.Title, strval(v))
 }
