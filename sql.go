@@ -5,6 +5,49 @@
 
 package norm
 
-// SQL represents a database-agnostic SQL query builder.
+// SQL represents a database-agnostic SQL query builder with chainable methods.
+//
+// Queries are immutable, so every call to any method will return a new pointer
+// to the query. The variable that holds the query needs to be reassigned for
+// building a query in multiple statements:
+//
+//   q := db.Select("bar").From("foo") // "q" is created
+//
+//   q.Where(...) // Does nothing as the value returned from Where is discarded.
+//
+//   q = q.Where(...) // "q" is reassigned and points to a different address.
 type SQL interface {
+	// Select creates a Selector that selects from the given columns (i.e.
+	// `SELECT first_name, last_name`)
+	//
+	// The returned Selector does not initially point to any table, a call to From()
+	// is required after Select() to construct a valid query:
+	//
+	//   q := db.Select("first_name", "last_name").From("users").Where(...)
+	Select(columns ...interface{}) Selector
+	// SelectFrom creates a Selector that selects all columns (i.e. `SELECT *`) from
+	// the given table.
+	//
+	// Example:
+	//
+	//   q := db.SelectFrom("users").Where(...)
+	SelectFrom(tables ...interface{}) Selector
+	// InsertInto creates an Inserter targeted at the given table.
+	//
+	// Example:
+	//
+	//   q := db.InsertInto("users").Columns(...).Values(...)
+	InsertInto(table string) Inserter
+	// Update creates an Updater targeted at the given table.
+	//
+	// Example:
+	//
+	//   q := db.Update("users").Set(...).Where(...)
+	Update(table string) Updater
+	// DeleteFrom create a Deleter targeted at the given table.
+	//
+	// Example:
+	//
+	//   q := db.DeleteFrom("users").Where(...)
+	DeleteFrom(table string) Deleter
 }
