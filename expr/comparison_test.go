@@ -15,7 +15,7 @@ import (
 func TestComparison(t *testing.T) {
 	c := Op("test", 1)
 	assert.Equal(t, "test", c.CustomOperator())
-	assert.Equal(t, ComparisonOperatorCustom, c.Operator())
+	assert.Equal(t, ComparisonCustom, c.Operator())
 	assert.Equal(t, 1, c.Value())
 }
 
@@ -29,146 +29,146 @@ func TestComparisonOperator(t *testing.T) {
 	}{
 		{
 			name: "Eq",
-			want: newComparisonOperator(ComparisonOperatorEqual, 6),
+			want: newComparisonOperator(ComparisonEqual, 6),
 			got:  Eq(6),
 		},
 		{
 			name: "NotEq",
-			want: newComparisonOperator(ComparisonOperatorNotEqual, 67),
+			want: newComparisonOperator(ComparisonNotEqual, 67),
 			got:  NotEq(67),
 		},
 
 		{
 			name: "Lt",
-			want: newComparisonOperator(ComparisonOperatorLessThan, 47),
+			want: newComparisonOperator(ComparisonLessThan, 47),
 			got:  Lt(47),
 		},
 		{
 			name: "Gt",
-			want: newComparisonOperator(ComparisonOperatorGreaterThan, 4),
+			want: newComparisonOperator(ComparisonGreaterThan, 4),
 			got:  Gt(4),
 		},
 
 		{
 			name: "Lte",
-			want: newComparisonOperator(ComparisonOperatorLessThanOrEqualTo, 22),
+			want: newComparisonOperator(ComparisonLessThanOrEqualTo, 22),
 			got:  Lte(22),
 		},
 		{
 			name: "Gte",
-			want: newComparisonOperator(ComparisonOperatorGreaterThanOrEqualTo, 1),
+			want: newComparisonOperator(ComparisonGreaterThanOrEqualTo, 1),
 			got:  Gte(1),
 		},
 
 		{
 			name: "Between",
-			want: newComparisonOperator(ComparisonOperatorBetween, []interface{}{11, 35}),
+			want: newComparisonOperator(ComparisonBetween, []interface{}{11, 35}),
 			got:  Between(11, 35),
 		},
 		{
 			name: "NotBetween",
-			want: newComparisonOperator(ComparisonOperatorNotBetween, []interface{}{11, 35}),
+			want: newComparisonOperator(ComparisonNotBetween, []interface{}{11, 35}),
 			got:  NotBetween(11, 35),
 		},
 
 		{
 			name: "In",
-			want: newComparisonOperator(ComparisonOperatorIn, []interface{}{1, 22, 34}),
+			want: newComparisonOperator(ComparisonIn, []interface{}{1, 22, 34}),
 			got:  In(1, 22, 34),
 		},
 		{
 			name: "NotIn",
-			want: newComparisonOperator(ComparisonOperatorNotIn, []interface{}{1, 22, 34}),
+			want: newComparisonOperator(ComparisonNotIn, []interface{}{1, 22, 34}),
 			got:  NotIn(1, 22, 34),
 		},
 		{
 			name: "AnyOf",
-			want: newComparisonOperator(ComparisonOperatorIn, []interface{}{1, 22, 34}),
+			want: newComparisonOperator(ComparisonIn, []interface{}{1, 22, 34}),
 			got:  AnyOf([]interface{}{1, 22, 34}),
 		},
 		{
 			name: "AnyOf",
-			want: newComparisonOperator(ComparisonOperatorIn, []interface{}{1}),
+			want: newComparisonOperator(ComparisonIn, []interface{}{1}),
 			got:  AnyOf(1),
 		},
 		{
 			name: "AnyOf",
-			want: newComparisonOperator(ComparisonOperatorIn, []interface{}{1}),
+			want: newComparisonOperator(ComparisonIn, []interface{}{1}),
 			got:  AnyOf(1),
 		},
 		{
 			name: "NotAnyOf",
-			want: newComparisonOperator(ComparisonOperatorNotIn, []interface{}{1, 22, 34}),
+			want: newComparisonOperator(ComparisonNotIn, []interface{}{1, 22, 34}),
 			got:  NotAnyOf([]interface{}{1, 22, 34}),
 		},
 		{
 			name: "NotAnyOf",
-			want: newComparisonOperator(ComparisonOperatorNotIn, []interface{}{now}),
+			want: newComparisonOperator(ComparisonNotIn, []interface{}{now}),
 			got:  NotAnyOf(&now),
 		},
 
 		{
 			name: "Is",
-			want: newComparisonOperator(ComparisonOperatorIs, 178),
+			want: newComparisonOperator(ComparisonIs, 178),
 			got:  Is(178),
 		},
 		{
 			name: "IsNot",
-			want: newComparisonOperator(ComparisonOperatorIsNot, 32),
+			want: newComparisonOperator(ComparisonIsNot, 32),
 			got:  IsNot(32),
 		},
 
 		{
 			name: "Like",
-			want: newComparisonOperator(ComparisonOperatorLike, "%a%"),
+			want: newComparisonOperator(ComparisonLike, "%a%"),
 			got:  Like("%a%"),
 		},
 		{
 			name: "NotLike",
-			want: newComparisonOperator(ComparisonOperatorNotLike, "%z%"),
+			want: newComparisonOperator(ComparisonNotLike, "%z%"),
 			got:  NotLike("%z%"),
 		},
 
 		{
 			name: "Regexp",
-			want: newComparisonOperator(ComparisonOperatorRegexp, ".*"),
+			want: newComparisonOperator(ComparisonRegexp, ".*"),
 			got:  Regexp(".*"),
 		},
 		{
 			name: "NotRegexp",
-			want: newComparisonOperator(ComparisonOperatorNotRegexp, ".*"),
+			want: newComparisonOperator(ComparisonNotRegexp, ".*"),
 			got:  NotRegexp(".*"),
 		},
 
 		{
 			name: "After",
-			want: newComparisonOperator(ComparisonOperatorGreaterThan, now),
+			want: newComparisonOperator(ComparisonGreaterThan, now),
 			got:  After(now),
 		},
 		{
 			name: "Before",
-			want: newComparisonOperator(ComparisonOperatorLessThan, now),
+			want: newComparisonOperator(ComparisonLessThan, now),
 			got:  Before(now),
 		},
 		{
 			name: "OnOrAfter",
-			want: newComparisonOperator(ComparisonOperatorGreaterThanOrEqualTo, now),
+			want: newComparisonOperator(ComparisonGreaterThanOrEqualTo, now),
 			got:  OnOrAfter(now),
 		},
 		{
 			name: "OnOrBefore",
-			want: newComparisonOperator(ComparisonOperatorLessThanOrEqualTo, now),
+			want: newComparisonOperator(ComparisonLessThanOrEqualTo, now),
 			got:  OnOrBefore(now),
 		},
 
 		{
 			name: "IsNull",
-			got:  newComparisonOperator(ComparisonOperatorIs, nil),
+			got:  newComparisonOperator(ComparisonIs, nil),
 			want: IsNull(),
 		},
 		{
 			name: "IsNotNull",
-			got:  newComparisonOperator(ComparisonOperatorIsNot, nil),
+			got:  newComparisonOperator(ComparisonIsNot, nil),
 			want: IsNotNull(),
 		},
 
