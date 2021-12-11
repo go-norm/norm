@@ -498,9 +498,359 @@ func TestTagNameMapping(t *testing.T) {
 		}
 		return value
 	})
-	fm := m.TypeMap(reflect.TypeOf(z))
+	fields := m.TypeMap(reflect.TypeOf(z))
 	for _, key := range []string{"strategy_id", "STRATEGYNAME"} {
-		fi := fm.GetByPath(key)
+		fi := fields.GetByPath(key)
 		assert.NotNil(t, fi, "mapping should exist")
 	}
+}
+
+func TestMapping(t *testing.T) {
+	type Person struct {
+		ID           int
+		Name         string
+		WearsGlasses bool `db:"wears_glasses"`
+	}
+	z1 := Person{
+		ID:           1,
+		Name:         "Jason",
+		WearsGlasses: true,
+	}
+
+	m := NewMapperFunc("db", strings.ToLower)
+	fields := m.TypeMap(reflect.TypeOf(z1))
+	for _, key := range []string{"id", "name", "wears_glasses"} {
+		fi := fields.GetByPath(key)
+		assert.NotNil(t, fi, "mapping should exist")
+	}
+
+	type SportsPerson struct {
+		Weight int
+		Age    int
+		Person
+	}
+	z2 := SportsPerson{
+		Weight: 100,
+		Age:    30,
+		Person: z1,
+	}
+	fields = m.TypeMap(reflect.TypeOf(z2))
+	for _, key := range []string{"id", "name", "wears_glasses", "weight", "age"} {
+		fi := fields.GetByPath(key)
+		assert.NotNil(t, fi, "mapping should exist")
+	}
+
+	type RugbyPlayer struct {
+		Position   int
+		IsIntense  bool `db:"is_intense"`
+		IsAllBlack bool `db:"-"`
+		SportsPerson
+	}
+	z3 := RugbyPlayer{
+		Position:     12,
+		IsIntense:    true,
+		SportsPerson: z2,
+	}
+	fields = m.TypeMap(reflect.TypeOf(z3))
+	for _, key := range []string{"id", "name", "wears_glasses", "weight", "age", "position", "is_intense"} {
+		fi := fields.GetByPath(key)
+		assert.NotNil(t, fi, "mapping should exist")
+	}
+
+	fi := fields.GetByPath("isallblack")
+	assert.Nil(t, fi, "mapping should be ignored")
+}
+
+func TestGetByTraversal(t *testing.T) {
+	type (
+		C struct {
+			C0 int
+			C1 int
+		}
+		B struct {
+			B0 string
+			B1 *C
+		}
+		A struct {
+			A0 int
+			A1 B
+		}
+	)
+
+	m := NewMapperFunc("db", func(n string) string { return n })
+	fields := m.TypeMap(reflect.TypeOf(A{}))
+
+	tests := []struct {
+		index    []int
+		wantName string
+		wantNil  bool
+	}{
+		{
+			index:    []int{0},
+			wantName: "A0",
+		},
+		{
+			index:    []int{1, 0},
+			wantName: "B0",
+		},
+		{
+			index:    []int{1, 1, 1},
+			wantName: "C1",
+		},
+		{
+			index:   []int{3, 4, 5},
+			wantNil: true,
+		},
+		{
+			index:   []int{},
+			wantNil: true,
+		},
+		{
+			index:   nil,
+			wantNil: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run("", func(t *testing.T) {
+			fi := fields.GetByTraversal(test.index)
+			if test.wantNil {
+				assert.Nil(t, fi)
+				return
+			}
+			require.NotNil(t, fi)
+			assert.Equal(t, test.wantName, fi.Name)
+		})
+	}
+}
+
+func TestMapperMethodsByName(t *testing.T) {
+	type (
+		C struct {
+			C0 string
+			C1 int
+		}
+		B struct {
+			B0 *C     `db:"B0"`
+			B1 C      `db:"B1"`
+			B2 string `db:"B2"`
+		}
+		A struct {
+			A0 *B `db:"A0"`
+			B  `db:"A1"`
+			A2 int
+			a3 int //nolint:unused,structcheck
+		}
+	)
+	z := &A{
+		A0: &B{
+			B0: &C{
+				C0: "0",
+				C1: 1,
+			},
+			B1: C{
+				C0: "2",
+				C1: 3,
+			},
+			B2: "4",
+		},
+		B: B{
+			B0: nil,
+			B1: C{
+				C0: "5",
+				C1: 6,
+			},
+			B2: "7",
+		},
+		A2: 8,
+	}
+	zv := reflect.ValueOf(z)
+
+	m := NewMapperFunc("db", func(n string) string { return n })
+
+	tests := []struct {
+		name        string
+		wantInvalid bool
+		wantValue   interface{}
+		wantIndexes []int
+	}{
+		{
+			name:        "A0.B0.C0",
+			wantValue:   "0",
+			wantIndexes: []int{0, 0, 0},
+		},
+		{
+			name:        "A0.B0.C1",
+			wantValue:   1,
+			wantIndexes: []int{0, 0, 1},
+		},
+		{
+			name:        "A0.B1.C0",
+			wantValue:   "2",
+			wantIndexes: []int{0, 1, 0},
+		},
+		{
+			name:        "A0.B1.C1",
+			wantValue:   3,
+			wantIndexes: []int{0, 1, 1},
+		},
+		{
+			name:        "A0.B2",
+			wantValue:   "4",
+			wantIndexes: []int{0, 2},
+		},
+		{
+			name:        "A1.B0.C0",
+			wantValue:   "",
+			wantIndexes: []int{1, 0, 0},
+		},
+		{
+			name:        "A1.B0.C1",
+			wantValue:   0,
+			wantIndexes: []int{1, 0, 1},
+		},
+		{
+			name:        "A1.B1.C0",
+			wantValue:   "5",
+			wantIndexes: []int{1, 1, 0},
+		},
+		{
+			name:        "A1.B1.C1",
+			wantValue:   6,
+			wantIndexes: []int{1, 1, 1},
+		},
+		{
+			name:        "A1.B2",
+			wantValue:   "7",
+			wantIndexes: []int{1, 2},
+		},
+		{
+			name:        "A2",
+			wantValue:   8,
+			wantIndexes: []int{2},
+		},
+		{
+			name:        "XYZ",
+			wantInvalid: true,
+			wantIndexes: []int{},
+		},
+		{
+			name:        "a3",
+			wantInvalid: true,
+			wantIndexes: []int{},
+		},
+	}
+
+	// Build the names array from the test cases
+	names := make([]string, len(tests))
+	for i, tc := range tests {
+		names[i] = tc.name
+	}
+	values := m.FieldsByName(zv, names)
+	require.Equal(t, len(tests), len(values))
+
+	indexes := m.TraversalsByName(zv.Type(), names)
+	require.Equal(t, len(tests), len(indexes))
+
+	for i, val := range values {
+		test := tests[i]
+		t.Run(test.name, func(t *testing.T) {
+			gotIndexes := indexes[i]
+			require.Equal(t, test.wantIndexes, gotIndexes)
+
+			val = reflect.Indirect(val)
+			if test.wantInvalid {
+				assert.False(t, val.IsValid(), "should be invalid")
+				return
+			}
+			require.True(t, val.IsValid(), "should be valid")
+
+			gotValue := reflect.Indirect(val).Interface()
+			assert.Equal(t, test.wantValue, gotValue)
+		})
+	}
+}
+
+func TestFieldByIndexes(t *testing.T) {
+	type (
+		C struct {
+			C0 bool
+			C1 string
+			C2 int
+			C3 map[string]int
+		}
+		B struct {
+			B1 C
+			B2 *C
+		}
+		A struct {
+			A1 B
+			A2 *B
+		}
+	)
+	tests := []struct {
+		value     interface{}
+		indexes   []int
+		wantValue interface{}
+		readOnly  bool
+	}{
+		{
+			value: A{
+				A1: B{B1: C{C0: true}},
+			},
+			indexes:   []int{0, 0, 0},
+			wantValue: true,
+			readOnly:  true,
+		},
+		{
+			value: A{
+				A2: &B{B2: &C{C1: "answer"}},
+			},
+			indexes:   []int{1, 1, 1},
+			wantValue: "answer",
+			readOnly:  true,
+		},
+		{
+			value:     &A{},
+			indexes:   []int{1, 1, 3},
+			wantValue: map[string]int{},
+		},
+	}
+	for _, test := range tests {
+		t.Run("", func(t *testing.T) {
+			v := FieldByIndexes(reflect.ValueOf(test.value), test.indexes)
+			if test.wantValue == nil {
+				assert.Nil(t, v.IsNil())
+			} else {
+				assert.Equal(t, test.wantValue, v.Interface())
+			}
+
+			if test.readOnly {
+				v := FieldByIndexesReadOnly(reflect.ValueOf(test.value), test.indexes)
+				if test.wantValue == nil {
+					assert.Nil(t, v.IsNil())
+				} else {
+					assert.Equal(t, test.wantValue, v.Interface())
+				}
+			}
+		})
+	}
+}
+
+func TestMustBe(t *testing.T) {
+	typ := reflect.TypeOf(E1{})
+	mustBe(typ, reflect.Struct)
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r, "should panic")
+
+		valueErr, ok := r.(*reflect.ValueError)
+		require.True(t, ok, "should panic with *reflect.ValueError")
+		assert.Equal(t, "unknwon.dev/norm/internal/reflectx.TestMustBe", valueErr.Method)
+		assert.Equal(t, reflect.String, valueErr.Kind)
+	}()
+
+	typ = reflect.TypeOf("string")
+	mustBe(typ, reflect.Struct)
+}
 }
