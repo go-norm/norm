@@ -22,6 +22,10 @@ func strval(v reflect.Value) string {
 	return v.Interface().(string)
 }
 
+func boolval(v reflect.Value) bool {
+	return v.Interface().(bool)
+}
+
 func TestBasic(t *testing.T) {
 	type Foo struct {
 		A int
@@ -202,6 +206,7 @@ func TestFlatTags(t *testing.T) {
 	}
 	zv := reflect.ValueOf(z)
 
+	// Columns: author, title
 	m := NewMapper("db")
 
 	v := m.FieldByName(zv, "author")
@@ -209,4 +214,83 @@ func TestFlatTags(t *testing.T) {
 
 	v = m.FieldByName(zv, "title")
 	assert.Equal(t, z.Asset.Title, strval(v))
+}
+
+func TestNestedStruct(t *testing.T) {
+	type (
+		Details struct {
+			Active bool `db:"active"`
+		}
+		Asset struct {
+			Title   string  `db:"title"`
+			Details Details `db:"details"`
+		}
+		Post struct {
+			Author string `db:"author,required"`
+			Asset  `db:"asset"`
+		}
+	)
+	z := Post{
+		Author: "Joe",
+		Asset: Asset{
+			Title: "Hello",
+			Details: Details{
+				Active: true,
+			},
+		},
+	}
+	zv := reflect.ValueOf(z)
+
+	// Columns: author, asset.title, asset.details.active
+	m := NewMapper("db")
+
+	v := m.FieldByName(zv, "author")
+	assert.Equal(t, z.Author, strval(v))
+
+	v = m.FieldByName(zv, "title")
+	_, ok := v.Interface().(string)
+	assert.False(t, ok, "title should not exist")
+
+	v = m.FieldByName(zv, "asset.title")
+	assert.Equal(t, z.Asset.Title, strval(v))
+
+	v = m.FieldByName(zv, "asset.details.active")
+	assert.Equal(t, z.Asset.Details.Active, boolval(v))
+}
+
+func TestInlineStruct(t *testing.T) {
+	type (
+		Employee struct {
+			Name string
+			ID   int
+		}
+		Boss   Employee
+		person struct {
+			Employee `db:"employee"`
+			Boss     `db:"boss"`
+		}
+	)
+	z := person{
+		Employee: Employee{
+			Name: "Joe",
+			ID:   2,
+		},
+		Boss: Boss{
+			Name: "Dick",
+			ID:   1,
+		},
+	}
+	zv := reflect.ValueOf(z)
+
+	// Columns: employee.name, employee.id, boss.name, boss.id
+	m := NewMapperTagFunc("db", strings.ToLower, nil)
+
+	fields := m.TypeMap(reflect.TypeOf(z))
+	assert.Len(t, fields.Index, 6, "number of fields")
+
+	v := m.FieldByName(zv, "employee.name")
+	assert.Equal(t, z.Employee.Name, strval(v))
+
+	v = m.FieldByName(zv, "boss.id")
+	assert.Equal(t, z.Boss.ID, intval(v))
 }
