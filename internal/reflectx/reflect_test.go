@@ -383,3 +383,81 @@ func TestFieldsEmbedded(t *testing.T) {
 	}
 	assert.Equal(t, want, got)
 }
+
+func TestAnonymousPointerFields(t *testing.T) {
+	type (
+		Asset struct {
+			Title string
+		}
+		Post struct {
+			*Asset `db:"asset"`
+			Author string
+		}
+	)
+	z := &Post{
+		Author: "Joe",
+		Asset: &Asset{
+			Title: "Hiyo",
+		},
+	}
+	zv := reflect.ValueOf(z)
+
+	m := NewMapperTagFunc("db", strings.ToLower, nil)
+	fields := m.TypeMap(reflect.TypeOf(z))
+	assert.Len(t, fields.Index, 3, "number of fields")
+
+	v := m.FieldByName(zv, "asset.title")
+	assert.Equal(t, z.Asset.Title, strval(v))
+
+	v = m.FieldByName(zv, "author")
+	assert.Equal(t, z.Author, strval(v))
+}
+
+func TestNamedPointerFields(t *testing.T) {
+	type (
+		User struct {
+			Name string
+		}
+		Asset struct {
+			Title string
+
+			Owner *User `db:"owner"`
+		}
+		Post struct {
+			Author string
+
+			Asset1 *Asset `db:"asset1"`
+			Asset2 *Asset `db:"asset2"`
+		}
+	)
+	z := &Post{
+		Author: "Joe",
+		Asset1: &Asset{
+			Title: "Hiyo",
+			Owner: &User{
+				Name: "Username",
+			},
+		},
+		// Let Asset2 be nil
+	}
+	zv := reflect.ValueOf(z)
+
+	m := NewMapperTagFunc("db", strings.ToLower, nil)
+	fields := m.TypeMap(reflect.TypeOf(z))
+	assert.Len(t, fields.Index, 9, "number of fields")
+
+	v := m.FieldByName(zv, "asset1.title")
+	assert.Equal(t, z.Asset1.Title, strval(v))
+
+	v = m.FieldByName(zv, "asset1.owner.name")
+	assert.Equal(t, z.Asset1.Owner.Name, strval(v))
+
+	v = m.FieldByName(zv, "asset2.title")
+	assert.Equal(t, z.Asset2.Title, strval(v))
+
+	v = m.FieldByName(zv, "asset2.owner.name")
+	assert.Equal(t, z.Asset2.Owner.Name, strval(v))
+
+	v = m.FieldByName(zv, "author")
+	assert.Equal(t, z.Author, strval(v))
+}
