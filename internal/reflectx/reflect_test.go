@@ -206,7 +206,6 @@ func TestFlatTags(t *testing.T) {
 	}
 	zv := reflect.ValueOf(z)
 
-	// Columns: author, title
 	m := NewMapper("db")
 
 	v := m.FieldByName(zv, "author")
@@ -241,7 +240,6 @@ func TestNestedStruct(t *testing.T) {
 	}
 	zv := reflect.ValueOf(z)
 
-	// Columns: author, asset.title, asset.details.active
 	m := NewMapper("db")
 
 	v := m.FieldByName(zv, "author")
@@ -282,7 +280,6 @@ func TestInlineStruct(t *testing.T) {
 	}
 	zv := reflect.ValueOf(z)
 
-	// Columns: employee.name, employee.id, boss.name, boss.id
 	m := NewMapperTagFunc("db", strings.ToLower, nil)
 
 	fields := m.TypeMap(reflect.TypeOf(z))
@@ -293,4 +290,96 @@ func TestInlineStruct(t *testing.T) {
 
 	v = m.FieldByName(zv, "boss.id")
 	assert.Equal(t, z.Boss.ID, intval(v))
+}
+
+func TestRecursiveStruct(t *testing.T) {
+	type Person struct {
+		Parent *Person
+		Name   string
+	}
+	z := &Person{
+		Parent: &Person{
+			Name: "parent",
+		},
+		Name: "child",
+	}
+	zv := reflect.ValueOf(z)
+
+	m := NewMapperFunc("db", strings.ToLower)
+
+	v := m.FieldByName(zv, "parent.name")
+	assert.Equal(t, z.Parent.Name, strval(v))
+}
+
+func TestFieldsEmbedded(t *testing.T) {
+	type (
+		Person struct {
+			Name string `db:"name,size=64"`
+		}
+		Place struct {
+			Name string `db:"name"`
+		}
+		Article struct {
+			Title string `db:"title"`
+		}
+		PP struct {
+			Person  `db:"person,required"`
+			Place   `db:",someflag"`
+			Article `db:",required"`
+		}
+	)
+	z := PP{
+		Person: Person{
+			Name: "Peter",
+		},
+		Place: Place{
+			Name: "Toronto",
+		},
+		Article: Article{
+			Title: "Best city ever",
+		},
+	}
+	zv := reflect.ValueOf(z)
+
+	m := NewMapper("db")
+	fields := m.TypeMap(reflect.TypeOf(z))
+
+	v := m.FieldByName(zv, "person.name")
+	assert.Equal(t, z.Person.Name, strval(v))
+
+	v = m.FieldByName(zv, "name")
+	assert.Equal(t, z.Place.Name, strval(v))
+
+	v = m.FieldByName(zv, "title")
+	assert.Equal(t, z.Article.Title, strval(v))
+
+	fi := fields.GetByPath("person")
+	require.NotNil(t, fi)
+	_, ok := fi.Options["required"]
+	assert.True(t, ok, "required option")
+	assert.True(t, fi.Embedded, "field should be embedded")
+	require.Len(t, fi.Index, 1, "length of index")
+	assert.Equal(t, 0, fi.Index[0])
+
+	fi = fields.GetByPath("person.name")
+	require.NotNil(t, fi)
+	assert.Equal(t, "person.name", fi.Path)
+	assert.Equal(t, "64", fi.Options["size"])
+
+	fi = fields.GetByTraversal([]int{1, 0})
+	require.NotNil(t, fi)
+	assert.Equal(t, "name", fi.Path)
+
+	fi = fields.GetByTraversal([]int{2})
+	require.NotNil(t, fi)
+	_, ok = fi.Options["required"]
+	assert.True(t, ok, "required option")
+
+	got := m.TraversalsByName(reflect.TypeOf(z), []string{"person.name", "name", "title"})
+	want := [][]int{
+		{0, 0},
+		{1, 0},
+		{2, 0},
+	}
+	assert.Equal(t, want, got)
 }
