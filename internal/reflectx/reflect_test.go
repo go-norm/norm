@@ -837,6 +837,9 @@ func TestFieldByIndexes(t *testing.T) {
 }
 
 func TestMustBe(t *testing.T) {
+	type E1 struct {
+		A int
+	}
 	typ := reflect.TypeOf(E1{})
 	mustBe(typ, reflect.Struct)
 
@@ -852,5 +855,4 @@ func TestMustBe(t *testing.T) {
 
 	typ = reflect.TypeOf("string")
 	mustBe(typ, reflect.Struct)
-}
 }
