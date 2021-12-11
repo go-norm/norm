@@ -461,3 +461,46 @@ func TestNamedPointerFields(t *testing.T) {
 	v = m.FieldByName(zv, "author")
 	assert.Equal(t, z.Author, strval(v))
 }
+
+func TestFieldMap(t *testing.T) {
+	type Foo struct {
+		A int
+		B int
+		C int
+	}
+	z := Foo{
+		A: 1,
+		B: 2,
+		C: 3,
+	}
+
+	m := NewMapperFunc("db", strings.ToLower)
+	fm := m.FieldMap(reflect.ValueOf(z))
+	assert.Len(t, fm, 3, "number of fields")
+	assert.Equal(t, 1, intval(fm["a"]))
+	assert.Equal(t, 2, intval(fm["b"]))
+	assert.Equal(t, 3, intval(fm["c"]))
+}
+
+func TestTagNameMapping(t *testing.T) {
+	type Strategy struct {
+		StrategyID   string `protobuf:"bytes,1,opt,name=strategy_id" json:"strategy_id,omitempty"`
+		StrategyName string
+	}
+	z := Strategy{
+		StrategyID:   "1",
+		StrategyName: "Alpah",
+	}
+
+	m := NewMapperTagFunc("json", strings.ToUpper, func(value string) string {
+		if strings.Contains(value, ",") {
+			return strings.Split(value, ",")[0]
+		}
+		return value
+	})
+	fm := m.TypeMap(reflect.TypeOf(z))
+	for _, key := range []string{"strategy_id", "STRATEGYNAME"} {
+		fi := fm.GetByPath(key)
+		assert.NotNil(t, fi, "mapping should exist")
+	}
+}
