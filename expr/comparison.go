@@ -64,14 +64,14 @@ func (c *Comparison) Value() interface{} {
 	return c.value
 }
 
-func newComparisonOperator(op ComparisonOperator, v interface{}) *Comparison {
+func newComparison(op ComparisonOperator, v interface{}) *Comparison {
 	return &Comparison{
 		op:    op,
 		value: v,
 	}
 }
 
-func newCustomComparisonOperator(op string, v interface{}) *Comparison {
+func newCustomComparison(op string, v interface{}) *Comparison {
 	return &Comparison{
 		op:     ComparisonCustom,
 		custom: op,
@@ -81,131 +81,131 @@ func newCustomComparisonOperator(op string, v interface{}) *Comparison {
 
 // Gte is a comparison that means: is greater than or equal to the value.
 func Gte(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonGreaterThanOrEqualTo, value)
+	return newComparison(ComparisonGreaterThanOrEqualTo, value)
 }
 
 // Lte is a comparison that means: is less than or equal to the value.
 func Lte(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonLessThanOrEqualTo, value)
+	return newComparison(ComparisonLessThanOrEqualTo, value)
 }
 
 // Eq is a comparison that means: is equal to the value.
 func Eq(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonEqual, value)
+	return newComparison(ComparisonEqual, value)
 }
 
 // NotEq is a comparison that means: is not equal to the value.
 func NotEq(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonNotEqual, value)
+	return newComparison(ComparisonNotEqual, value)
 }
 
 // Gt is a comparison that means: is greater than the value.
 func Gt(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonGreaterThan, value)
+	return newComparison(ComparisonGreaterThan, value)
 }
 
 // Lt is a comparison that means: is less than the value.
 func Lt(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonLessThan, value)
+	return newComparison(ComparisonLessThan, value)
 }
 
 // In is a comparison that means: is any of the values.
 func In(value ...interface{}) *Comparison {
-	return newComparisonOperator(ComparisonIn, toInterfaceArray(value))
+	return newComparison(ComparisonIn, toInterfaceArray(value))
 }
 
 // NotIn is a comparison that means: is none of the values.
 func NotIn(value ...interface{}) *Comparison {
-	return newComparisonOperator(ComparisonNotIn, toInterfaceArray(value))
+	return newComparison(ComparisonNotIn, toInterfaceArray(value))
 }
 
 // AnyOf is a comparison that means: is any of the values of the slice.
 func AnyOf(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonIn, toInterfaceArray(value))
+	return newComparison(ComparisonIn, toInterfaceArray(value))
 }
 
 // NotAnyOf is a comparison that means: is none of the values of the slice.
 func NotAnyOf(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonNotIn, toInterfaceArray(value))
+	return newComparison(ComparisonNotIn, toInterfaceArray(value))
 }
 
 // After is a comparison that means: is after the time.
 func After(value time.Time) *Comparison {
-	return newComparisonOperator(ComparisonGreaterThan, value)
+	return newComparison(ComparisonGreaterThan, value)
 }
 
 // Before is a comparison that means: is before the time.
 func Before(value time.Time) *Comparison {
-	return newComparisonOperator(ComparisonLessThan, value)
+	return newComparison(ComparisonLessThan, value)
 }
 
 // OnOrAfter is a comparison that means: is on or after the time.
 func OnOrAfter(value time.Time) *Comparison {
-	return newComparisonOperator(ComparisonGreaterThanOrEqualTo, value)
+	return newComparison(ComparisonGreaterThanOrEqualTo, value)
 }
 
 // OnOrBefore is a comparison that means: is on or before the time.
 func OnOrBefore(value time.Time) *Comparison {
-	return newComparisonOperator(ComparisonLessThanOrEqualTo, value)
+	return newComparison(ComparisonLessThanOrEqualTo, value)
 }
 
 // Between is a comparison that means: is between lower and upper bound.
 func Between(lower, upper interface{}) *Comparison {
-	return newComparisonOperator(ComparisonBetween, []interface{}{lower, upper})
+	return newComparison(ComparisonBetween, []interface{}{lower, upper})
 }
 
 // NotBetween is a comparison that means: is not between lower and upper bound.
 func NotBetween(lower, upper interface{}) *Comparison {
-	return newComparisonOperator(ComparisonNotBetween, []interface{}{lower, upper})
+	return newComparison(ComparisonNotBetween, []interface{}{lower, upper})
 }
 
 // Is is a comparison that means: is equivalent to nil, true or false.
 func Is(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonIs, value)
+	return newComparison(ComparisonIs, value)
 }
 
 // IsNot is a comparison that means: is not equivalent to nil, true nor false.
 func IsNot(value interface{}) *Comparison {
-	return newComparisonOperator(ComparisonIsNot, value)
+	return newComparison(ComparisonIsNot, value)
 }
 
 // IsNull is a comparison that means: is equivalent to nil.
 func IsNull() *Comparison {
-	return newComparisonOperator(ComparisonIs, nil)
+	return newComparison(ComparisonIs, nil)
 }
 
 // IsNotNull is a comparison that means: is not equivalent to nil.
 func IsNotNull() *Comparison {
-	return newComparisonOperator(ComparisonIsNot, nil)
+	return newComparison(ComparisonIsNot, nil)
 }
 
 // Like is a comparison that checks whether the reference matches the wildcard
 // of the value.
 func Like(value string) *Comparison {
-	return newComparisonOperator(ComparisonLike, value)
+	return newComparison(ComparisonLike, value)
 }
 
 // NotLike is a comparison that checks whether the reference does not match the
 // wildcard of the value.
 func NotLike(value string) *Comparison {
-	return newComparisonOperator(ComparisonNotLike, value)
+	return newComparison(ComparisonNotLike, value)
 }
 
 // Regexp is a comparison that checks whether the reference matches the regular
 // expression.
 func Regexp(value string) *Comparison {
-	return newComparisonOperator(ComparisonRegexp, value)
+	return newComparison(ComparisonRegexp, value)
 }
 
 // NotRegexp is a comparison that checks whether the reference does not match
 // the regular expression.
 func NotRegexp(value string) *Comparison {
-	return newComparisonOperator(ComparisonNotRegexp, value)
+	return newComparison(ComparisonNotRegexp, value)
 }
 
 // Op returns a comparison with the custom operator.
 func Op(op string, value interface{}) *Comparison {
-	return newCustomComparisonOperator(op, value)
+	return newCustomComparison(op, value)
 }
 
 func toInterfaceArray(v interface{}) []interface{} {
