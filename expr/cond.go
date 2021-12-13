@@ -71,3 +71,14 @@ func (c Cond) String() string {
 	}
 	return fmt.Sprintf("(%s %s)", c.Operator(), strings.Join(strs, " "))
 }
+
+var _ Constraints = (Cond)(nil)
+
+// Constraints returns each one of the Cond map entires as a constraint.
+func (c Cond) Constraints() []Constraint {
+	z := make([]Constraint, 0, len(c))
+	for _, k := range c.keys() {
+		z = append(z, NewConstraint(k, c[k]))
+	}
+	return z
+}

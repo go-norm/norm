@@ -385,6 +385,57 @@ func (s *selector) Base() interface{} {
 	return &selectorQuery{}
 }
 
+// todo
+
+func (s *selector) clone() norm.Selector {
+	return s.frame(func(*selectorQuery) error {
+		return nil
+	})
+}
+
+func (s *selector) setColumns(columns ...interface{}) norm.Selector {
+	return s.frame(func(sq *selectorQuery) error {
+		sq.columns = nil
+		return sq.pushColumns(columns)
+	})
+}
+
+func (s *selector) Amend(fn func(string) string) norm.Selector {
+	return s.frame(func(sq *selectorQuery) error {
+		sq.amendFn = fn
+		return nil
+	})
+}
+
+func (s *selector) QueryRow(ctx context.Context) (*sql.Row, error) {
+	sq, err := s.build()
+	if err != nil {
+		return nil, err
+	}
+
+	return s.Builder().Executor().QueryRow(ctx, sq.statement(), sq.arguments()...)
+}
+
+func (s *selector) Prepare(ctx context.Context) (*sql.Stmt, error) {
+	sq, err := s.build()
+	if err != nil {
+		return nil, err
+	}
+	return s.Builder().Executor().Prepare(ctx, sq.statement())
+}
+
+func (s *selector) Query(ctx context.Context) (*sql.Rows, error) {
+	sq, err := s.build()
+	if err != nil {
+		return nil, err
+	}
+	return s.Builder().Executor().Query(ctx, sq.statement(), sq.arguments()...)
+}
+
+func (s *selector) Paginate(pageSize uint) norm.Paginator {
+	return newPaginator(s.clone(), pageSize)
+}
+
 type selectorQuery struct {
 	table     *exql.Columns
 	tableArgs []interface{}
@@ -409,6 +460,7 @@ type selectorQuery struct {
 	joins     []*exql.Join
 	joinsArgs []interface{}
 
+	amendFn func(string) string
 }
 
 func (sq *selectorQuery) arguments() []interface{} {
@@ -534,5 +586,7 @@ func (sq *selectorQuery) statement() *exql.Statement {
 	if len(sq.joins) > 0 {
 		stmt.Joins = exql.JoinConditions(sq.joins...)
 	}
+
+	stmt.SetAmendment(sq.amendFn)
 	return stmt
 }

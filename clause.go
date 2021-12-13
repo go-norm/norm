@@ -7,6 +7,7 @@ package norm
 
 import (
 	"context"
+	"fmt"
 )
 
 // Selector represents a SQL query builder for the SELECT statement.
@@ -186,22 +187,259 @@ type Selector interface {
 	String() string
 	// Arguments returns the arguments that are prepared for this query.
 	Arguments() []interface{}
+
+	// Amend lets you alter the query's text just before sending it to the
+	// database server.
+	Amend(func(queryIn string) (queryOut string)) Selector
+
+	// Paginate returns a paginator that can display a paginated lists of items.
+	// Paginators ignore previous Offset and Limit settings. Page numbering
+	// starts at 1.
+	Paginate(uint) Paginator
+
+	// SQLPreparer provides methods for creating prepared statements.
+	SQLPreparer
+
+	// SQLGetter provides methods to compile and execute a query that returns
+	// results.
+	SQLGetter
 }
 
 // Inserter represents a SQL query builder for the INSERT statement.
 type Inserter interface {
+	// Columns represents the COLUMNS clause.
+	//
+	// COLUMNS defines the columns that we are going to provide values for.
+	//
+	//   i.Columns("name", "last_name").Values(...)
+	Columns(...string) Inserter
+
+	// Values represents the VALUES clause.
+	//
+	// VALUES defines the values of the columns.
+	//
+	//   i.Columns(...).Values("María", "Méndez")
+	//
+	//   i.Values(map[string][string]{"name": "María"})
+	Values(...interface{}) Inserter
+
+	// Arguments returns the arguments that are prepared for this query.
+	Arguments() []interface{}
+
+	// Returning represents a RETURNING clause.
+	//
+	// RETURNING specifies which columns should be returned after INSERT.
+	//
+	// RETURNING may not be supported by all SQL databases.
+	Returning(columns ...string) Inserter
+
+	// Iterate provides methods to iterate over the results returned by
+	// the Inserter. This is only possible when using Returning().
+	// Iterate(ctx context.Context) Iterate
+
+	// Amend lets you alter the query's text just before sending it to the
+	// database server.
+	Amend(func(queryIn string) (queryOut string)) Inserter
+
+	// Batch provies a BatchInserter that can be used to insert many elements at
+	// once by issuing several calls to Values(). It accepts a size parameter
+	// which defines the batch size. If size is < 1, the batch size is set to 1.
+	Batch(size int) BatchInserter
+
+	// SQLExecer provides the Exec method.
+	SQLExecer
+
+	// SQLPreparer provides methods for creating prepared statements.
+	SQLPreparer
+
+	// SQLGetter provides methods to return query results from INSERT statements
+	// that support such feature (e.g.: queries with Returning).
+	SQLGetter
+
+	// fmt.Stringer provides `String() string`, you can use `String()` to compile
+	// the `Inserter` into a string.
+	fmt.Stringer
 }
 
 // Updater represents a SQL query builder for the UPDATE statement.
 type Updater interface {
+	// Set represents the SET clause.
+	Set(...interface{}) Updater
+
+	// Where represents the WHERE clause.
+	//
+	// See Selector.Where for documentation and usage examples.
+	Where(...interface{}) Updater
+
+	// And appends more constraints to the WHERE clause without overwriting
+	// conditions that have been already set.
+	And(conds ...interface{}) Updater
+
+	// Limit represents the LIMIT parameter.
+	//
+	// See Selector.Limit for documentation and usage examples.
+	Limit(int) Updater
+
+	// SQLPreparer provides methods for creating prepared statements.
+	SQLPreparer
+
+	// SQLExecer provides the Exec method.
+	SQLExecer
+
+	// fmt.Stringer provides `String() string`, you can use `String()` to compile
+	// the `Inserter` into a string.
+	fmt.Stringer
+
+	// Arguments returns the arguments that are prepared for this query.
+	Arguments() []interface{}
+
+	// Amend lets you alter the query's text just before sending it to the
+	// database server.
+	Amend(func(queryIn string) (queryOut string)) Updater
 }
 
 // Deleter represents a SQL query builder for the DELETE statement.
 type Deleter interface {
+	// Where represents the WHERE clause.
+	//
+	// See Selector.Where for documentation and usage examples.
+	Where(...interface{}) Deleter
+
+	// And appends more constraints to the WHERE clause without overwriting
+	// conditions that have been already set.
+	And(conds ...interface{}) Deleter
+
+	// Limit represents the LIMIT clause.
+	//
+	// See Selector.Limit for documentation and usage examples.
+	Limit(int) Deleter
+
+	// Amend lets you alter the query's text just before sending it to the
+	// database server.
+	Amend(func(queryIn string) (queryOut string)) Deleter
+
+	// SQLPreparer provides methods for creating prepared statements.
+	SQLPreparer
+
+	// SQLExecer provides the Exec method.
+	SQLExecer
+
+	// fmt.Stringer provides `String() string`, you can use `String()` to compile
+	// the `Inserter` into a string.
+	fmt.Stringer
+
+	// Arguments returns the arguments that are prepared for this query.
+	Arguments() []interface{}
+}
+
+type Alter interface {
+}
+
+type Creator interface {
+}
+
+type Dropper interface {
+}
+
+// Paginator provides tools for splitting the results of a query into chunks
+// containing a fixed number of items.
+type Paginator interface {
+	// Page sets the page number.
+	Page(uint) Paginator
+
+	// Cursor defines the column that is going to be taken as basis for
+	// cursor-based pagination.
+	//
+	// Example:
+	//
+	//   a = q.Paginate(10).Cursor("id")
+	//	 b = q.Paginate(12).Cursor("-id")
+	//
+	// You can set "" as cursorColumn to disable cursors.
+	Cursor(cursorColumn string) Paginator
+
+	// NextPage returns the next page according to the cursor. It expects a
+	// cursorValue, which is the value the cursor column has on the last item of
+	// the current result set (lower bound).
+	//
+	// Example:
+	//
+	//   p = q.NextPage(items[len(items)-1].ID)
+	NextPage(cursorValue interface{}) Paginator
+
+	// PrevPage returns the previous page according to the cursor. It expects a
+	// cursorValue, which is the value the cursor column has on the fist item of
+	// the current result set (upper bound).
+	//
+	// Example:
+	//
+	//   p = q.PrevPage(items[0].ID)
+	PrevPage(cursorValue interface{}) Paginator
+
+	// TotalPages returns the total number of pages in the query.
+	TotalPages(ctx context.Context) (uint, error)
+
+	// TotalEntries returns the total number of entries in the query.
+	TotalEntries(ctx context.Context) (uint64, error)
+
+	// SQLPreparer provides methods for creating prepared statements.
+	SQLPreparer
+
+	// SQLGetter provides methods to compile and execute a query that returns
+	// results.
+	SQLGetter
+
+	// Iterator provides methods to iterate over the results returned by
+	// the Selector.
+	Iterator(ctx context.Context) Iterator
+
+	// ResultMapper provides methods to retrieve and map results.
+	ResultMapper
+
+	// fmt.Stringer provides `String() string`, you can use `String()` to compile
+	// the `Selector` into a string.
+	fmt.Stringer
+
+	// Arguments returns the arguments that are prepared for this query.
+	Arguments() []interface{}
+}
+
+// BatchInserter provides an interface to do massive insertions in batches.
+type BatchInserter interface {
+	// Values pushes column values to be inserted as part of the batch.
+	Values(...interface{}) BatchInserter
+
+	// NextResult dumps the next slice of results to dst, which can mean having
+	// the IDs of all inserted elements in the batch.
+	NextResult(ctx context.Context, dst interface{}) bool
+
+	// Done signals that no more elements are going to be added.
+	Done()
+
+	// Wait blocks until the whole batch is executed.
+	Wait(ctx context.Context) error
+
+	// Err returns the last error that happened while executing the batch (or nil
+	// if no error happened).
+	Err() error
 }
 
 // Iterator defines a collection of methods to iterate over query results.
 type Iterator interface {
+	// Scan dumps the current result into the given pointer variable pointers.
+	Scan(dest ...interface{}) error
+	// NextScan advances the iterator and performs Scan.
+	NextScan(dest ...interface{}) error
+	// ScanOne advances the iterator, performs Scan and closes the iterator.
+	ScanOne(dest ...interface{}) error
+	// Next dumps the current element into the given destination, which could be
+	// a pointer to either a map or a struct.
+	Next(dest ...interface{}) bool
+	// Err returns the last error produced by the cursor.
+	Err() error
+	// Close closes the iterator and frees up the cursor.
+	Close() error
+
 	ResultMapper
 }
 
