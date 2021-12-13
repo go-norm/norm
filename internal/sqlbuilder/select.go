@@ -105,7 +105,7 @@ func (s *selector) Where(conds ...interface{}) norm.Selector {
 	}
 	return s.frame(func(sq *selectorQuery) error {
 		sq.where, sq.whereArgs = nil, nil
-		return errors.Wrap(sq.and(s.Builder(), conds...), "Where")
+		return errors.Wrap(sq.and(s.Builder().t, conds...), "Where")
 	})
 }
 
@@ -114,7 +114,7 @@ func (s *selector) And(conds ...interface{}) norm.Selector {
 		return s
 	}
 	return s.frame(func(sq *selectorQuery) error {
-		return errors.Wrap(sq.and(s.Builder(), conds...), "And")
+		return errors.Wrap(sq.and(s.Builder().t, conds...), "And")
 	})
 }
 
@@ -245,8 +245,12 @@ func (s *selector) On(conds ...interface{}) norm.Selector {
 			return errors.New(`On: cannot use multiple Using() or On() with the same JOIN expression`)
 		}
 
-		where, args := s.Builder().t.toWhereWithArguments(conds)
-		on := exql.On(where)
+		where, args, err := s.Builder().t.toWhereClause(conds)
+		if err != nil {
+			return errors.Wrap(err, "convert to WHERE clause")
+		}
+
+		on := exql.On(*where)
 		lastJoin.On = &on
 		sq.joinsArgs = append(sq.joinsArgs, args...)
 		return nil
@@ -361,6 +365,26 @@ func (s *selector) Arguments() []interface{} {
 	return args
 }
 
+var _ immutable.Immutable = (*selector)(nil)
+
+func (s *selector) Prev() immutable.Immutable {
+	if s == nil {
+		return nil
+	}
+	return s.prev
+}
+
+func (s *selector) Fn(in interface{}) error {
+	if s.fn == nil {
+		return nil
+	}
+	return s.fn(in.(*selectorQuery))
+}
+
+func (s *selector) Base() interface{} {
+	return &selectorQuery{}
+}
+
 type selectorQuery struct {
 	table     *exql.Columns
 	tableArgs []interface{}
@@ -384,6 +408,18 @@ type selectorQuery struct {
 
 	joins     []*exql.Join
 	joinsArgs []interface{}
+
+}
+
+func (sq *selectorQuery) arguments() []interface{} {
+	return joinArguments(
+		sq.columnsArgs,
+		sq.tableArgs,
+		sq.joinsArgs,
+		sq.whereArgs,
+		sq.groupByArgs,
+		sq.orderByArgs,
+	)
 }
 
 func parseColumnExpressions(exprs []interface{}) (fragments []exql.Fragment, args []interface{}, err error) {
@@ -429,7 +465,7 @@ func parseColumnExpressions(exprs []interface{}) (fragments []exql.Fragment, arg
 		case interface{}:
 			fragments[i] = exql.ColumnWithName(fmt.Sprintf("%v", v))
 		default:
-			return nil, nil, errors.Errorf("unexpected argument type %T", v)
+			return nil, nil, errors.Errorf("unexpected type %T", v)
 		}
 	}
 	return fragments, args, nil
@@ -452,6 +488,51 @@ func (sq *selectorQuery) pushColumns(exprs []interface{}) error {
 	return nil
 }
 
-func (sq *selectorQuery) pushJoin(t string, tables []interface{}) error {
+func (sq *selectorQuery) and(t *templateWithUtils, conds ...interface{}) error {
+	where, whereArgs, err := t.toWhereClause(conds)
+	if err != nil {
+		return errors.Wrap(err, "convert to WHERE clause")
+	}
+
+	if sq.where == nil {
+		sq.where, sq.whereArgs = &exql.Where{}, []interface{}{}
+	}
+	sq.where.Append(where)
+	sq.whereArgs = append(sq.whereArgs, whereArgs...)
 	return nil
+}
+
+func (sq *selectorQuery) pushJoin(t string, tables []interface{}) error {
+	fragments, args, err := parseColumnExpressions(tables)
+	if err != nil {
+		return errors.Wrap(err, "parse column expressions")
+	}
+
+	sq.joins = append(sq.joins,
+		&exql.Join{
+			Type:  t,
+			Table: exql.JoinColumns(fragments...),
+		},
+	)
+	sq.joinsArgs = append(sq.joinsArgs, args...)
+	return nil
+}
+
+func (sq *selectorQuery) statement() *exql.Statement {
+	stmt := &exql.Statement{
+		Type:     exql.Select,
+		Table:    sq.table,
+		Columns:  sq.columns,
+		Distinct: sq.distinct,
+		OrderBy:  sq.orderBy,
+		GroupBy:  sq.groupBy,
+		Where:    sq.where,
+		Limit:    sq.limit,
+		Offset:   sq.offset,
+	}
+
+	if len(sq.joins) > 0 {
+		stmt.Joins = exql.JoinConditions(sq.joins...)
+	}
+	return stmt
 }
