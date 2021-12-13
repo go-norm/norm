@@ -7,12 +7,17 @@ package sqlbuilder
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 
 	"unknwon.dev/norm"
 	"unknwon.dev/norm/expr"
 	"unknwon.dev/norm/internal/exql"
+	"unknwon.dev/norm/internal/immutable"
 )
 
 var _ norm.Selector = (*selector)(nil)
@@ -29,6 +34,13 @@ func (s *selector) frame(fn func(*selectorQuery) error) *selector {
 		prev: s,
 		fn:   fn,
 	}
+}
+
+func (s *selector) Builder() *sqlBuilder {
+	if s.prev == nil {
+		return s.builder
+	}
+	return s.prev.Builder()
 }
 
 func (s *selector) Columns(columns ...interface{}) norm.Selector {
@@ -77,7 +89,7 @@ func (s *selector) As(alias string) norm.Selector {
 			return nil
 		}
 
-		compiled, err := exql.ColumnWithName(alias).Compile(s.template())
+		compiled, err := exql.ColumnWithName(alias).Compile(s.Builder().t.Template)
 		if err != nil {
 			return errors.Wrap(err, "As: compile column with alias")
 		}
@@ -311,9 +323,43 @@ func (s *selector) One(ctx context.Context, dest interface{}) error {
 }
 
 func (s *selector) String() string {
+	q, err := s.Compile()
+	if err != nil {
+		panic("unable to compile SELECT query: " + err.Error())
+	}
+	return s.Builder().t.FormatSQL(q)
+}
+
+var _ compilable = (*selector)(nil)
+
+func (s *selector) Compile() (string, error) {
+	sq, err := s.build()
+	if err != nil {
+		return "", errors.Wrap(err, "build")
+	}
+	return sq.statement().Compile(s.Builder().t.Template)
+}
+
+func (s *selector) build() (*selectorQuery, error) {
+	sq, err := immutable.FastForward(s)
+	if err != nil {
+		return nil, errors.Wrap(err, "construct *selectorQuery")
+	}
+	return sq.(*selectorQuery), nil
 }
 
 func (s *selector) Arguments() []interface{} {
+	sq, err := s.build()
+	if err != nil {
+		panic("unable to build SELECT query: " + err.Error())
+	}
+
+	args := sq.arguments()
+	for i := range args {
+		args[i] = s.Builder().Typer().Valuer(args[i])
+	}
+	return args
+}
 
 type selectorQuery struct {
 	table     *exql.Columns
