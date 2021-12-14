@@ -16,8 +16,10 @@ import (
 )
 
 // toArguments wraps the given value into an array of interfaces that can be
-// used to pass as query arguments. The `isSlice` returns true when the value is
-// a slice.
+// used to pass as query arguments.
+//
+// The `isSlice` returns true when the value is a slice. The returned arguments
+// list would only contain one element when the `isSlice` returns false.
 func toArguments(v interface{}) (args []interface{}, isSlice bool) {
 	if v == nil {
 		return nil, false
