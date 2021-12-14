@@ -13,3 +13,6 @@ type Join struct {
 	Using Fragment
 	hash  hash
 }
+
+// On represents JOIN conditions.
+type On Where

@@ -33,3 +33,8 @@ func (c *Columns) IsEmpty() bool {
 func JoinColumns(columns ...Fragment) *Columns {
 	return &Columns{Columns: columns}
 }
+
+// UsingColumns builds a Using from the given columns.
+func UsingColumns(columns ...Fragment) *Using {
+	return &Using{Columns: columns}
+}

@@ -16,3 +16,7 @@ type Where struct {
 	Conditions []Fragment
 	hash       hash
 }
+
+func (w *Where) Append(a *Where) *Where {
+	return w
+}

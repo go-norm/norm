@@ -11,4 +11,5 @@ type (
 )
 
 type Template struct {
+	FormatSQL func(sql string) string
 }
