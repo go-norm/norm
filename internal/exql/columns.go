@@ -8,6 +8,7 @@ package exql
 // Columns represents an array of Column.
 type Columns struct {
 	Columns []Fragment
+	hash    hash
 }
 
 func (c *Columns) Hash() string {

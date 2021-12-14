@@ -5,6 +5,13 @@
 
 package sqlbuilder
 
+import (
+
+	"github.com/pkg/errors"
+
+	"unknwon.dev/norm/internal/exql"
+)
+
 type template struct {
 }
 
