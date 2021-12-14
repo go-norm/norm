@@ -5,16 +5,6 @@
 
 package exql
 
-type Order uint8
-
-const (
-	_ = Order(iota)
-	Ascendant
-	Descendent
-)
-
-// OrderBy represents an ORDER BY clause.
-type OrderBy struct {
-	SortColumns Fragment
-	hash        hash
+// Join represents a generic JOIN statement.
+type Join struct {
 }

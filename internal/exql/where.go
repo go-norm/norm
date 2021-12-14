@@ -5,16 +5,8 @@
 
 package exql
 
-type Order uint8
-
-const (
-	_ = Order(iota)
-	Ascendant
-	Descendent
-)
-
-// OrderBy represents an ORDER BY clause.
-type OrderBy struct {
-	SortColumns Fragment
-	hash        hash
+// Where represents an SQL WHERE clause.
+type Where struct {
+	Conditions []Fragment
+	hash       hash
 }

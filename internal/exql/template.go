@@ -5,5 +5,10 @@
 
 package exql
 
+type (
+	Limit int
+	Offset int
+)
+
 type Template struct {
 }

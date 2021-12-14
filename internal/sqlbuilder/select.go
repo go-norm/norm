@@ -525,7 +525,7 @@ func (sq *selectorQuery) pushColumns(exprs []interface{}) error {
 	return nil
 }
 
-func (sq *selectorQuery) and(t *templateWithUtils, conds ...interface{}) error {
+func (sq *selectorQuery) and(t *template, conds ...interface{}) error {
 	where, whereArgs, err := t.toWhereClause(conds)
 	if err != nil {
 		return errors.Wrap(err, "convert to WHERE clause")

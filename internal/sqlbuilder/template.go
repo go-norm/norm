@@ -13,6 +13,7 @@ import (
 )
 
 type template struct {
+	*exql.Template
 }
 
 func (t *template) toWhereClause(conds interface{}) (where *exql.Where, args []interface{}, err error) {

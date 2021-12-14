@@ -18,4 +18,6 @@ type iterator struct {
 }
 
 type sqlBuilder struct {
+	adapter.Adapter
+	t *template
 }
