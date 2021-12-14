@@ -10,6 +10,8 @@ type Columns struct {
 	Columns []Fragment
 }
 
+func (c *Columns) Hash() string {
+	return c.hash.Hash(c)
 }
 
 // Append appends the other Columns to the current one.
