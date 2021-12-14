@@ -8,6 +8,7 @@ package sqlbuilder
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -40,6 +41,24 @@ func reset(data interface{}) {
 	}
 
 	v.Set(z)
+}
+
+var ErrExpectingMapOrStruct = errors.New("argument must be either a map or a struct")
+
+// todo
+var Mapper = reflectx.NewMapper("db")
+
+// todo
+type sessValueConverter interface {
+	ConvertValue(interface{}) interface{}
+}
+
+// todo
+type valueConverter interface {
+	ConvertValue(in interface{}) (out interface {
+		sql.Scanner
+		driver.Valuer
+	})
 }
 
 func fetchResult(typer adapter.Typer, iter *iterator, itemT reflect.Type, columns []string) (reflect.Value, error) {
@@ -190,6 +209,25 @@ func (iter *iterator) setErr(err error) error {
 	return iter.err
 }
 
+func (iter *iterator) Err() (err error) {
+	return iter.err
+}
+
+func (iter *iterator) Close() error {
+	if iter.cursor == nil {
+		return nil
+	}
+	defer func() {
+		iter.cursor = nil
+	}()
+
+	err := iter.cursor.Close()
+	if err != nil {
+		return err
+	}
+	return iter.cursor.Err()
+}
+
 // todo: respect context
 func (iter *iterator) All(ctx context.Context, dst interface{}) error {
 	if err := iter.Err(); err != nil {
@@ -203,6 +241,81 @@ func (iter *iterator) All(ctx context.Context, dst interface{}) error {
 	}
 
 	return nil
+}
+
+var ErrNoMoreRows = errors.New("no more rows in the result set")
+
+// fetchRow receives a *sql.Rows value and tries to map all the rows into a
+// single struct given by the pointer `dst`.
+func fetchRow(typer adapter.Typer, iter *iterator, dst interface{}) error {
+	var columns []string
+	var err error
+
+	rows := iter.cursor
+
+	dstv := reflect.ValueOf(dst)
+
+	if dstv.IsNil() || dstv.Kind() != reflect.Ptr {
+		return ErrExpectingPointer
+	}
+
+	itemV := dstv.Elem()
+
+	if columns, err = rows.Columns(); err != nil {
+		return err
+	}
+
+	reset(dst)
+
+	next := rows.Next()
+
+	if !next {
+		if err = rows.Err(); err != nil {
+			return err
+		}
+		return ErrNoMoreRows
+	}
+
+	itemT := itemV.Type()
+	item, err := fetchResult(typer, iter, itemT, columns)
+	if err != nil {
+		return err
+	}
+
+	if itemT.Kind() == reflect.Ptr {
+		itemV.Set(item)
+	} else {
+		itemV.Set(reflect.Indirect(item))
+	}
+
+	return nil
+}
+
+func (iter *iterator) next(dst ...interface{}) error {
+	if iter.cursor == nil {
+		return iter.setErr(ErrNoMoreRows)
+	}
+
+	switch len(dst) {
+	case 0:
+		if ok := iter.cursor.Next(); !ok {
+			defer iter.Close()
+			err := iter.cursor.Err()
+			if err == nil {
+				err = ErrNoMoreRows
+			}
+			return err
+		}
+		return nil
+	case 1:
+		if err := fetchRow(iter.adapter.Typer(), iter, dst[0]); err != nil {
+			defer iter.Close()
+			return err
+		}
+		return nil
+	}
+
+	return errors.New("Next does not currently supports more than one parameters")
 }
 
 // todo: respect context
