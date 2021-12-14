@@ -7,7 +7,6 @@ package sqlbuilder
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
@@ -421,8 +420,24 @@ type selectorQuery struct {
 
 }
 
+func flattenArguments(args ...[]interface{}) []interface{} {
+	total := 0
+	for i := range args {
+		total += len(args[i])
+	}
+	if total == 0 {
+		return nil
+	}
+
+	flatten := make([]interface{}, 0, total)
+	for i := range args {
+		flatten = append(flatten, args[i]...)
+	}
+	return flatten
+}
+
 func (sq *selectorQuery) arguments() []interface{} {
-	return joinArguments(
+	return flattenArguments(
 		sq.columnsArgs,
 		sq.tableArgs,
 		sq.joinsArgs,
