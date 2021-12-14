@@ -5,6 +5,12 @@
 
 package exql
 
+// Or represents an SQL OR operator.
+type Or Where
+
+// And represents an SQL AND operator.
+type And Where
+
 // Where represents an SQL WHERE clause.
 type Where struct {
 	Conditions []Fragment

@@ -5,5 +5,17 @@
 
 package exql
 
+import (
+	"strings"
+)
+
 type Raw struct {
+	Value string // Value should not be modified after assigned.
+	hash  hash
+}
+
+func RawValue(v string) *Raw {
+	return &Raw{
+		Value: strings.TrimSpace(v),
+	}
 }

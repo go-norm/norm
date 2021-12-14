@@ -11,10 +11,7 @@ import (
 	"unknwon.dev/norm/adapter"
 )
 
-type iterator struct {
-	adapter adapter.Adapter
-	cursor  *sql.Rows // This is the main query cursor. It starts as a nil value.
-	err     error
+type MapOptions struct {
 }
 
 type sqlBuilder struct {

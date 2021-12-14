@@ -7,4 +7,9 @@ package exql
 
 // Join represents a generic JOIN statement.
 type Join struct {
+	Type  string
+	Table Fragment
+	On    Fragment
+	Using Fragment
+	hash  hash
 }

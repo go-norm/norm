@@ -13,6 +13,19 @@ const (
 	Descendent
 )
 
+// SortColumn represents the column-order relation in an ORDER BY clause.
+type SortColumn struct {
+	Column Fragment
+	Order
+	hash hash
+}
+
+// SortColumns represents the columns in an ORDER BY clause.
+type SortColumns struct {
+	Columns []Fragment
+	hash    hash
+}
+
 // OrderBy represents an ORDER BY clause.
 type OrderBy struct {
 	SortColumns Fragment
