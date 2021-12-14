@@ -147,7 +147,11 @@ func (s *selector) OrderBy(columns ...interface{}) norm.Selector {
 			var sort *exql.SortColumn
 			switch v := c.(type) {
 			case *expr.RawExpr:
-				q, args := Preprocess(v.Raw(), v.Arguments())
+				q, args, err := ExpandQuery(v.Raw(), v.Arguments())
+				if err != nil {
+					return errors.Wrap(err, "OrderBy: expand query for *expr.RawExpr")
+				}
+
 				sort = &exql.SortColumn{
 					Column: exql.RawValue(q),
 				}
@@ -160,7 +164,13 @@ func (s *selector) OrderBy(columns ...interface{}) norm.Selector {
 				} else {
 					fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
 				}
-				fnName, fnArgs = Preprocess(fnName, fnArgs)
+
+				var err error
+				fnName, fnArgs, err = ExpandQuery(fnName, fnArgs)
+				if err != nil {
+					return errors.Wrap(err, "OrderBy: expand query for *expr.FuncExpr")
+				}
+
 				sort = &exql.SortColumn{
 					Column: exql.RawValue(fnName),
 				}
@@ -433,7 +443,11 @@ func parseColumnExpressions(exprs []interface{}) (fragments []exql.Fragment, arg
 				return nil, nil, errors.Wrap(err, "compile")
 			}
 
-			q, a := Preprocess(q, v.Arguments())
+			q, a, err := ExpandQuery(q, v.Arguments())
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand query for compilable")
+			}
+
 			if _, ok := v.(norm.Selector); ok {
 				q = "(" + q + ")"
 			}
@@ -447,12 +461,20 @@ func parseColumnExpressions(exprs []interface{}) (fragments []exql.Fragment, arg
 			} else {
 				fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
 			}
-			fnName, fnArgs = Preprocess(fnName, fnArgs)
+			fnName, fnArgs, err = ExpandQuery(fnName, fnArgs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand query for *expr.FuncExpr")
+			}
+
 			fragments[i] = exql.RawValue(fnName)
 			args = append(args, fnArgs...)
 
 		case *expr.RawExpr:
-			q, a := Preprocess(v.Raw(), v.Arguments())
+			q, a, err := ExpandQuery(v.Raw(), v.Arguments())
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand query for *expr.RawExpr")
+			}
+
 			fragments[i] = exql.RawValue(q)
 			args = append(args, a...)
 
