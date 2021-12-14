@@ -6,6 +6,7 @@
 package sqlbuilder
 
 import (
+	"database/sql/driver"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,77 +14,168 @@ import (
 	"unknwon.dev/norm/expr"
 )
 
-func TestPlaceholderSimple(t *testing.T) {
-	{
-		ret, _, _ := ExpandQuery("?", []interface{}{1})
-		assert.Equal(t, "?", ret)
-	}
-	{
-		ret, _, _ := ExpandQuery("?", nil)
-		assert.Equal(t, "?", ret)
-	}
+var _ driver.Valuer = (*mockDriverValuer)(nil)
+
+type mockDriverValuer struct {
+	value string
 }
 
-func TestPlaceholderMany(t *testing.T) {
-	{
-		ret, _, _ := ExpandQuery("?, ?, ?", []interface{}{1, 2, 3})
-		assert.Equal(t, "?, ?, ?", ret)
-	}
+func (m mockDriverValuer) Value() (driver.Value, error) {
+	return m.value, nil
 }
 
-func TestPlaceholderArray(t *testing.T) {
-	{
-		ret, _, _ := ExpandQuery("?, ?, ?", []interface{}{1, 2, []interface{}{3, 4, 5}})
-		assert.Equal(t, "?, ?, (?, ?, ?)", ret)
-	}
+func TestExpandQuery(t *testing.T) {
+	mockCompilable := NewMockCompilable()
+	mockCompilable.CompileFunc.SetDefaultReturn("DISTINCT(id)", nil)
 
-	{
-		ret, _, _ := ExpandQuery("?, ?, ?", []interface{}{[]interface{}{1, 2, 3}, 4, 5})
-		assert.Equal(t, "(?, ?, ?), ?, ?", ret)
-	}
+	tests := []struct {
+		name      string
+		query     string
+		args      []interface{}
+		wantQuery string
+		wantArgs  []interface{}
+	}{
+		{
+			name:      "one",
+			query:     "?",
+			args:      []interface{}{1},
+			wantQuery: "?",
+			wantArgs:  []interface{}{1},
+		},
+		{
+			name:      "no args",
+			query:     "?",
+			args:      nil,
+			wantQuery: "?",
+			wantArgs:  []interface{}{},
+		},
+		{
+			name:      "nil args",
+			query:     "?",
+			args:      []interface{}{nil},
+			wantQuery: "NULL",
+			wantArgs:  []interface{}{},
+		},
 
-	{
-		ret, _, _ := ExpandQuery("?, ?, ?", []interface{}{1, []interface{}{2, 3, 4}, 5})
-		assert.Equal(t, "?, (?, ?, ?), ?", ret)
-	}
+		{
+			name:      "many",
+			query:     "?, ?, ?",
+			args:      []interface{}{1, 2, 3},
+			wantQuery: "?, ?, ?",
+			wantArgs:  []interface{}{1, 2, 3},
+		},
 
-	{
-		ret, _, _ := ExpandQuery("???", []interface{}{1, []interface{}{2, 3, 4}, 5})
-		assert.Equal(t, "?(?, ?, ?)?", ret)
-	}
+		{
+			name:  "array",
+			query: "?, ?, ?",
+			args: []interface{}{
+				1,
+				2,
+				[]interface{}{3, 4, 5},
+			},
+			wantQuery: "?, ?, (?, ?, ?)",
+			wantArgs:  []interface{}{1, 2, 3, 4, 5},
+		},
+		{
+			name:  "array",
+			query: "?, ?, ?",
+			args: []interface{}{
+				[]interface{}{1, 2, 3},
+				4,
+				5,
+			},
+			wantQuery: "(?, ?, ?), ?, ?",
+			wantArgs:  []interface{}{1, 2, 3, 4, 5},
+		},
+		{
+			name:  "array",
+			query: "?, ?, ?",
+			args: []interface{}{
+				1,
+				[]interface{}{2, 3, 4},
+				5,
+			},
+			wantQuery: "?, (?, ?, ?), ?",
+			wantArgs:  []interface{}{1, 2, 3, 4, 5},
+		},
+		{
+			name:  "array",
+			query: "?, ?",
+			args: []interface{}{
+				[]interface{}{1, 2, 3},
+				[]interface{}{4, 5},
+			},
+			wantQuery: "(?, ?, ?), (?, ?)",
+			wantArgs:  []interface{}{1, 2, 3, 4, 5},
+		},
+		{
+			name:  "array",
+			query: "???",
+			args: []interface{}{
+				1,
+				[]interface{}{2, 3, 4},
+				5,
+			},
+			wantQuery: "?(?, ?, ?)?",
+			wantArgs:  []interface{}{1, 2, 3, 4, 5},
+		},
+		{
+			name:  "array",
+			query: "??",
+			args: []interface{}{
+				[]interface{}{1, 2, 3},
+				[]interface{}{},
+				[]interface{}{4, 5},
+				[]interface{}{},
+			},
+			wantQuery: "(?, ?, ?)(NULL)",
+			wantArgs: []interface{}{
+				1,
+				2,
+				3,
+				[]interface{}{4, 5},
+				[]interface{}{},
+			},
+		},
 
-	{
-		ret, _, _ := ExpandQuery("??", []interface{}{[]interface{}{1, 2, 3}, []interface{}{}, []interface{}{4, 5}, []interface{}{}})
-		assert.Equal(t, "(?, ?, ?)(NULL)", ret)
-	}
-}
+		{
+			name:      "raw",
+			query:     "?, ?, ?",
+			args:      []interface{}{1, expr.Raw("foo"), 3},
+			wantQuery: "?, foo, ?",
+			wantArgs:  []interface{}{1, 3},
+		},
 
-func TestPlaceholderArguments(t *testing.T) {
-	{
-		_, args, _ := ExpandQuery("?, ?, ?", []interface{}{1, 2, []interface{}{3, 4, 5}})
-		assert.Equal(t, []interface{}{1, 2, 3, 4, 5}, args)
-	}
+		{
+			name:      "compilable",
+			query:     "?, ?, ?",
+			args:      []interface{}{1, mockCompilable, 3},
+			wantQuery: "?, (DISTINCT(id)), ?",
+			wantArgs:  []interface{}{1, 3},
+		},
 
-	{
-		_, args, _ := ExpandQuery("?, ?, ?", []interface{}{1, []interface{}{2, 3, 4}, 5})
-		assert.Equal(t, []interface{}{1, 2, 3, 4, 5}, args)
-	}
+		{
+			name:      "driver.Valuer",
+			query:     "?, ?, ?",
+			args:      []interface{}{1, mockDriverValuer{value: "bar"}, 3},
+			wantQuery: "?, ?, ?",
+			wantArgs:  []interface{}{1, mockDriverValuer{value: "bar"}, 3},
+		},
 
-	{
-		_, args, _ := ExpandQuery("?, ?, ?", []interface{}{[]interface{}{1, 2, 3}, 4, 5})
-		assert.Equal(t, []interface{}{1, 2, 3, 4, 5}, args)
+		{
+			name:      "byte slice",
+			query:     "?, ?, ?",
+			args:      []interface{}{1, []byte("baz"), 3},
+			wantQuery: "?, ?, ?",
+			wantArgs:  []interface{}{1, []byte("baz"), 3},
+		},
 	}
-
-	{
-		_, args, _ := ExpandQuery("?, ?", []interface{}{[]interface{}{1, 2, 3}, []interface{}{4, 5}})
-		assert.Equal(t, []interface{}{1, 2, 3, 4, 5}, args)
-	}
-}
-
-func TestPlaceholderReplace(t *testing.T) {
-	{
-		ret, args, _ := ExpandQuery("?, ?, ?", []interface{}{1, expr.Raw("foo"), 3})
-		assert.Equal(t, "?, foo, ?", ret)
-		assert.Equal(t, []interface{}{1, 3}, args)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotQuery, gotArgs, err := ExpandQuery(test.query, test.args)
+			assert.NoError(t, err)
+			assert.Equal(t, test.wantQuery, gotQuery)
+			assert.Equal(t, test.wantArgs, gotArgs)
+		})
 	}
 }

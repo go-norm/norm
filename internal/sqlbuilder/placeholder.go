@@ -28,13 +28,10 @@ func toArguments(v interface{}) (args []interface{}, isSlice bool) {
 	}
 
 	vv := reflect.ValueOf(v)
-	if vv.Type().Kind() != reflect.Slice {
-		return []interface{}{v}, false
-	}
 
-	// Byte slice gets transformed into a string.
-	if vv.Type().Elem().Kind() == reflect.Uint8 {
-		return []interface{}{string(v.([]byte))}, false
+	// Non-slice and byte slice preserves the original type
+	if vv.Type().Kind() != reflect.Slice || vv.Type().Elem().Kind() == reflect.Uint8 {
+		return []interface{}{v}, false
 	}
 
 	args = make([]interface{}, vv.Len())
@@ -42,7 +39,6 @@ func toArguments(v interface{}) (args []interface{}, isSlice bool) {
 		args[i] = vv.Index(i).Interface()
 	}
 	return args, true
-
 }
 
 // expandPlaceholder expands the placeholder string and wrapped list of
@@ -61,25 +57,25 @@ func expandPlaceholder(arg interface{}) (placeholder string, args []interface{},
 
 	if len(vals) == 0 {
 		return "NULL", nil, nil
-	} else if len(vals) == 1 {
-		switch t := arg.(type) {
-		case *expr.RawExpr:
-			placeholder, args, err = ExpandQuery(t.Raw(), t.Arguments())
-			if err != nil {
-				return "", nil, errors.Wrap(err, "expand query for *expr.RawExpr")
-			}
-			return placeholder, args, nil
-
-		case compilable:
-			q, err := t.Compile()
-			if err != nil {
-				return "", nil, errors.Wrap(err, "compile")
-			}
-			placeholder = "(" + q + ")"
-			return placeholder, t.Arguments(), nil
-		}
 	}
-	return "", []interface{}{arg}, nil
+
+	switch v := vals[0].(type) {
+	case *expr.RawExpr:
+		placeholder, args, err = ExpandQuery(v.Raw(), v.Arguments())
+		if err != nil {
+			return "", nil, errors.Wrap(err, "expand query for *expr.RawExpr")
+		}
+		return placeholder, args, nil
+
+	case compilable:
+		q, err := v.Compile()
+		if err != nil {
+			return "", nil, errors.Wrap(err, "compile")
+		}
+		placeholder = "(" + q + ")"
+		return placeholder, v.Arguments(), nil
+	}
+	return "", vals, nil
 }
 
 // ExpandQuery expands the query with given arguments with necessary
@@ -91,26 +87,28 @@ func ExpandQuery(query string, args []interface{}) (string, []interface{}, error
 		if query[i] != '?' {
 			continue
 		}
-		if len(args) > argn {
-			k, vals, err := expandPlaceholder(args[argn])
-			if err != nil {
-				return "", nil, errors.Wrap(err, "expand placeholder")
-			}
-
-			k, vals, err = ExpandQuery(k, vals)
-			if err != nil {
-				return "", nil, errors.Wrap(err, "expand query")
-			}
-
-			if k != "" {
-				query = query[:i] + k + query[i+1:]
-				i += len(k) - 1
-			}
-			if len(vals) > 0 {
-				argx = append(argx, vals...)
-			}
-			argn++
+		if len(args) <= argn {
+			break
 		}
+
+		k, vals, err := expandPlaceholder(args[argn])
+		if err != nil {
+			return "", nil, errors.Wrap(err, "expand placeholder")
+		}
+
+		k, vals, err = ExpandQuery(k, vals)
+		if err != nil {
+			return "", nil, errors.Wrap(err, "expand query")
+		}
+
+		if k != "" {
+			query = query[:i] + k + query[i+1:]
+			i += len(k) - 1
+		}
+		if len(vals) > 0 {
+			argx = append(argx, vals...)
+		}
+		argn++
 	}
 	if len(argx) < len(args) {
 		argx = append(argx, args[argn:]...)

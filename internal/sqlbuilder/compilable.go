@@ -5,6 +5,7 @@
 
 package sqlbuilder
 
+//go:generate go-mockgen --force unknwon.dev/norm/internal/sqlbuilder -i compilable -o mock_compilable_test.go
 type compilable interface {
 	Compile() (string, error)
 	Arguments() []interface{}
