@@ -6,7 +6,10 @@
 package sqlbuilder
 
 //go:generate go-mockgen --force unknwon.dev/norm/internal/sqlbuilder -i compilable -o mock_compilable_test.go
+// compilable represents a statement that can be complied into a SQL query.
 type compilable interface {
+	// Compile returned the complied query string.
 	Compile() (string, error)
+	// Arguments returns the arguments list to be pass with the query string.
 	Arguments() []interface{}
 }
