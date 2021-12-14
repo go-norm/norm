@@ -15,47 +15,52 @@ import (
 	"unknwon.dev/norm/expr"
 )
 
-// toInterfaceArguments converts the given value into an array of interfaces.
-func toInterfaceArguments(value interface{}) (args []interface{}, isSlice bool) {
-	if value == nil {
+// toArguments wraps the given value into an array of interfaces that can be
+// used to pass as query arguments. The `isSlice` returns true when the value is
+// a slice.
+func toArguments(v interface{}) (args []interface{}, isSlice bool) {
+	if v == nil {
 		return nil, false
 	}
 
-	switch t := value.(type) {
-	case driver.Valuer:
-		return []interface{}{t}, false
+	if valuer, ok := v.(driver.Valuer); ok {
+		return []interface{}{valuer}, false
 	}
 
-	v := reflect.ValueOf(value)
-	if v.Type().Kind() == reflect.Slice {
-		// Byte slice gets transformed into a string.
-		if v.Type().Elem().Kind() == reflect.Uint8 {
-			return []interface{}{string(value.([]byte))}, false
-		}
-
-		total := v.Len()
-		args = make([]interface{}, total)
-		for i := 0; i < total; i++ {
-			args[i] = v.Index(i).Interface()
-		}
-		return args, true
+	vv := reflect.ValueOf(v)
+	if vv.Type().Kind() != reflect.Slice {
+		return []interface{}{v}, false
 	}
-	return []interface{}{value}, false
+
+	// Byte slice gets transformed into a string.
+	if vv.Type().Elem().Kind() == reflect.Uint8 {
+		return []interface{}{string(v.([]byte))}, false
+	}
+
+	args = make([]interface{}, vv.Len())
+	for i := range args {
+		args[i] = vv.Index(i).Interface()
+	}
+	return args, true
+
 }
 
-// todo
-func expandPlaceholders(arg interface{}) (placeholder string, args []interface{}, err error) {
-	vals, isSlice := toInterfaceArguments(arg)
+// expandPlaceholder expands the placeholder string and wrapped list of
+// arguments from the given argument. It returns an empty string for the
+// placeholder and a slice containing the original argument if expansion is not
+// possible.
+func expandPlaceholder(arg interface{}) (placeholder string, args []interface{}, err error) {
+	vals, isSlice := toArguments(arg)
 	if isSlice {
 		if len(vals) == 0 {
-			return `(NULL)`, nil, nil
+			return "(NULL)", nil, nil
 		}
-		placeholder = `(?` + strings.Repeat(`, ?`, len(vals)-1) + `)`
+		placeholder = "(?" + strings.Repeat(", ?", len(vals)-1) + ")"
 		return placeholder, vals, nil
 	}
 
 	if len(vals) == 0 {
-		return `NULL`, nil, nil
+		return "NULL", nil, nil
 	} else if len(vals) == 1 {
 		switch t := arg.(type) {
 		case *expr.RawExpr:
@@ -70,15 +75,15 @@ func expandPlaceholders(arg interface{}) (placeholder string, args []interface{}
 			if err != nil {
 				return "", nil, errors.Wrap(err, "compile")
 			}
-			placeholder = `(` + q + `)`
+			placeholder = "(" + q + ")"
 			return placeholder, t.Arguments(), nil
 		}
 	}
 	return "", []interface{}{arg}, nil
 }
 
-// todo: ExpandQuery expands arguments that need to be expanded and compiles a query
-// into a single string.
+// ExpandQuery expands the query with given arguments with necessary
+// placeholders.
 func ExpandQuery(query string, args []interface{}) (string, []interface{}, error) {
 	argn := 0
 	argx := make([]interface{}, 0, len(args))
@@ -87,9 +92,9 @@ func ExpandQuery(query string, args []interface{}) (string, []interface{}, error
 			continue
 		}
 		if len(args) > argn {
-			k, vals, err := expandPlaceholders(args[argn])
+			k, vals, err := expandPlaceholder(args[argn])
 			if err != nil {
-				return "", nil, errors.Wrap(err, "expand argument")
+				return "", nil, errors.Wrap(err, "expand placeholder")
 			}
 
 			k, vals, err = ExpandQuery(k, vals)
