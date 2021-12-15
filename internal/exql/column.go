@@ -30,7 +30,6 @@ func (c *Column) Hash() string {
 	return c.hash.Hash(c)
 }
 
-// Compile transforms the ColumnValue into an equivalent SQL representation.
 func (c *Column) Compile(t *Template) (compiled string, err error) {
 	if z, ok := t.Get(c); ok {
 		return z, nil
