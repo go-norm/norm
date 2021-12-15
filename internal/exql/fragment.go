@@ -9,6 +9,7 @@ import (
 	"unknwon.dev/norm/internal/cache"
 )
 
+//go:generate go-mockgen --force unknwon.dev/norm/internal/exql -i Fragment -o mock_fragment_test.go
 // Fragment is any interface that can be both cached and compiled.
 type Fragment interface {
 	cache.Hashable
