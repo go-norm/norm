@@ -3,3 +3,11 @@
 // license that can be found in the LICENSE file.
 
 package exql
+
+import (
+	"testing"
+)
+
+func TestTemplate(t *testing.T) {
+
+}
