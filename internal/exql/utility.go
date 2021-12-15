@@ -15,37 +15,9 @@ func isBlankSymbol(in byte) bool {
 	return in == ' ' || in == '\t' || in == '\r' || in == '\n'
 }
 
-// trimBytes returns a slice of s with a leading and trailing blank symbols (as
-// defined by isBlankSymbol) removed.
-func trimBytes(s []byte) []byte {
-
-	start, end := 0, len(s)-1
-
-	if end < start {
-		return []byte{}
-	}
-
-	for isBlankSymbol(s[start]) {
-		start++
-		if start >= end {
-			return []byte{}
-		}
-	}
-
-	for isBlankSymbol(s[end]) {
-		end--
-	}
-
-	return s[start : end+1]
-}
-
 // trimString returns a slice of s with a leading and trailing blank symbols
 // (as defined by isBlankSymbol) removed.
 func trimString(s string) string {
-
-	// This conversion is rather slow.
-	// return string(trimBytes([]byte(s)))
-
 	start, end := 0, len(s)-1
 
 	if end < start {
