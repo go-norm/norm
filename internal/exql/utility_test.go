@@ -55,128 +55,74 @@ func TestTrimString(t *testing.T) {
 	}
 }
 
-// todo
-func TestUtilSeparateByAS(t *testing.T) {
-	var chunks []string
-
-	var tests = []string{
-		`table.Name AS myTableAlias`,
-		`table.Name     AS         myTableAlias`,
-		"table.Name\tAS\r\nmyTableAlias",
+func TestSeparateByAS(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{
+			input: "table.Name AS myTableAlias",
+			want:  []string{"table.Name", "myTableAlias"},
+		},
+		{
+			input: "table.Name     AS         myTableAlias",
+			want:  []string{"table.Name", "myTableAlias"},
+		},
+		{
+			input: "table.Name\tAS\nmyTableAlias",
+			want:  []string{"table.Name", "myTableAlias"},
+		},
+		{
+			input: "a",
+			want:  []string{"a"},
+		},
+		{
+			input: "",
+			want:  []string{""},
+		},
+		{
+			input: "  A Single Table ",
+			want:  []string{"A Single Table"},
+		},
+		{
+			input: "a AS b",
+			want:  []string{"a", "b"},
+		},
+		{
+			input: "   a    AS    b ",
+			want:  []string{"a", "b"},
+		},
+		{
+			input: "   a    AS    bb ",
+			want:  []string{"a", "bb"},
+		},
 	}
-
 	for _, test := range tests {
-		chunks = separateByAS(test)
-
-		if len(chunks) != 2 {
-			t.Fatalf(`Expecting 2 results.`)
-		}
-
-		if chunks[0] != "table.Name" {
-			t.Fatal(`Expecting first result to be "table.Name".`)
-		}
-		if chunks[1] != "myTableAlias" {
-			t.Fatal(`Expecting second result to be myTableAlias.`)
-		}
-	}
-
-	// Single character.
-	chunks = separateByAS("a")
-
-	if len(chunks) != 1 {
-		t.Fatalf(`Expecting 1 results.`)
-	}
-
-	if chunks[0] != "a" {
-		t.Fatal(`Expecting first result to be "a".`)
-	}
-
-	// Empty name
-	chunks = separateByAS("")
-
-	if len(chunks) != 1 {
-		t.Fatalf(`Expecting 1 results.`)
-	}
-
-	if chunks[0] != "" {
-		t.Fatal(`Expecting first result to be "".`)
-	}
-
-	// Single name
-	chunks = separateByAS("  A Single Table ")
-
-	if len(chunks) != 1 {
-		t.Fatalf(`Expecting 1 results.`)
-	}
-
-	if chunks[0] != "A Single Table" {
-		t.Fatal(`Expecting first result to be "ASingleTable".`)
-	}
-
-	// Minimal expression.
-	chunks = separateByAS("a AS b")
-
-	if len(chunks) != 2 {
-		t.Fatalf(`Expecting 2 results.`)
-	}
-
-	if chunks[0] != "a" {
-		t.Fatal(`Expecting first result to be "a".`)
-	}
-
-	if chunks[1] != "b" {
-		t.Fatal(`Expecting first result to be "b".`)
-	}
-
-	// Minimal expression with spaces.
-	chunks = separateByAS("   a    AS    b ")
-
-	if len(chunks) != 2 {
-		t.Fatalf(`Expecting 2 results.`)
-	}
-
-	if chunks[0] != "a" {
-		t.Fatal(`Expecting first result to be "a".`)
-	}
-
-	if chunks[1] != "b" {
-		t.Fatal(`Expecting first result to be "b".`)
-	}
-
-	// Minimal expression + 1 with spaces.
-	chunks = separateByAS("   a    AS    bb ")
-
-	if len(chunks) != 2 {
-		t.Fatalf(`Expecting 2 results.`)
-	}
-
-	if chunks[0] != "a" {
-		t.Fatal(`Expecting first result to be "a".`)
-	}
-
-	if chunks[1] != "bb" {
-		t.Fatal(`Expecting first result to be "bb".`)
+		t.Run(test.input, func(t *testing.T) {
+			got := separateByAS(test.input)
+			assert.Equal(t, test.want, got)
+		})
 	}
 }
 
-func TestUtilSeparateBySpace(t *testing.T) {
-	chunks := separateBySpace("       Hello        World!        Enjoy")
-
-	if len(chunks) != 3 {
-		t.Fatal()
+func TestSeparateBySpace(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{
+			input: "       Hello        World!        Enjoy",
+			want:  []string{"Hello", "World!", "Enjoy"},
+		},
+		{
+			input: "",
+			want:  []string{""},
+		},
 	}
-
-	if chunks[0] != "Hello" {
-		t.Fatal()
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			got := separateBySpace(test.input)
+			assert.Equal(t, test.want, got)
+		})
 	}
-	if chunks[1] != "World!" {
-		t.Fatal()
-	}
-	if chunks[2] != "Enjoy" {
-		t.Fatal()
-	}
-
-	got := separateBySpace("")
-	want := []string{""}
-	assert.Equal(t, want, got)
 }

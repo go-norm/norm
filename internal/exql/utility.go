@@ -36,28 +36,28 @@ func trimString(s string) string {
 	return s[start : end+1]
 }
 
-func separateByAS(in string) []string {
-	if len(in) < 6 {
-		// The minimum expression with the AS keyword is "x AS y", 6 chars.
-		return []string{in}
+func separateByAS(s string) []string {
+	// The minimum expression with the AS keyword is "x AS y", 6 chars.
+	if len(s) < 6 {
+		return []string{s}
 	}
 
 	out := make([]string, 0, 2)
-	start, lim := 0, len(in)-1
+	start, lim := 0, len(s)-1
 	for start <= lim {
 		var end int
 		for end = start; end <= lim; end++ {
-			if end > 3 && isBlankSymbol(in[end]) && isBlankSymbol(in[end-3]) {
-				if (in[end-1] == 's' || in[end-1] == 'S') && (in[end-2] == 'a' || in[end-2] == 'A') {
+			if end > 3 && isBlankSymbol(s[end]) && isBlankSymbol(s[end-3]) {
+				if (s[end-1] == 's' || s[end-1] == 'S') && (s[end-2] == 'a' || s[end-2] == 'A') {
 					break
 				}
 			}
 		}
 
 		if end < lim {
-			out = append(out, trimString(in[start:end-3]))
+			out = append(out, trimString(s[start:end-3]))
 		} else {
-			out = append(out, trimString(in[start:end]))
+			out = append(out, trimString(s[start:end]))
 		}
 
 		start = end + 1
@@ -65,13 +65,12 @@ func separateByAS(in string) []string {
 	return out
 }
 
-// Separates by spaces, ignoring spaces too.
-func separateBySpace(in string) []string {
-	if len(in) == 0 {
+func separateBySpace(s string) []string {
+	if len(s) == 0 {
 		return []string{""}
 	}
 
-	pre := strings.Split(in, " ")
+	pre := strings.Split(s, " ")
 	out := make([]string, 0, len(pre))
 	for i := range pre {
 		pre[i] = trimString(pre[i])
