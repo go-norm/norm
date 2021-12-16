@@ -56,6 +56,7 @@ const (
 
 // Template is an SQL template.
 type Template struct {
+	layouts   map[TemplateLayout]string
 	templates map[TemplateLayout]*template.Template
 	operators map[expr.ComparisonOperator]string
 
@@ -66,8 +67,9 @@ type Template struct {
 // layouts are complied to templates at the time of initialization.
 func NewTemplate(layouts map[TemplateLayout]string, operators map[expr.ComparisonOperator]string) (*Template, error) {
 	t := &Template{
-		operators: operators,
+		layouts:   layouts,
 		templates: make(map[TemplateLayout]*template.Template, len(layouts)),
+		operators: operators,
 		LRU:       cache.NewLRU(),
 	}
 
