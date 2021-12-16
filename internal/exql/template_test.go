@@ -101,7 +101,7 @@ func TestTemplate_Compile(t *testing.T) {
 	}
 }
 
-func defaultTemplate() *Template {
+func defaultTemplate(t *testing.T) *Template {
 	const (
 		defaultAndKeyword         = `AND`
 		defaultAscKeyword         = `ASC`
@@ -236,7 +236,7 @@ SET {{.ColumnValues | compile}}
   `
 	)
 
-	t, err := NewTemplate(
+	tmpl, err := NewTemplate(
 		map[TemplateLayout]string{
 			LayoutAndKeyword:          defaultAndKeyword,
 			LayoutAscKeyword:          defaultAscKeyword,
@@ -272,7 +272,7 @@ SET {{.ColumnValues | compile}}
 		nil,
 	)
 	if err != nil {
-		panic(err)
+		t.Fatalf("Failed to create new template: %v", err)
 	}
-	return t
+	return tmpl
 }

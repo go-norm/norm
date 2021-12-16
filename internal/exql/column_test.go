@@ -7,74 +7,72 @@ package exql
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestColumnHash(t *testing.T) {
-	var s, e string
-
-	column := Column{Name: "role.name"}
-
-	s = column.Hash()
-	e = "*exql.Column:6700949208506105459"
-
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
+func TestColumn(t *testing.T) {
+	tmpl := defaultTemplate(t)
+	tests := []struct {
+		name   string
+		column *Column
+		want   string
+	}{
+		{
+			name:   "normal",
+			column: ColumnWithName("users.name"),
+			want:   `"users"."name"`,
+		},
+		{
+			name:   "explicit as",
+			column: ColumnWithName("users.name as foo"),
+			want:   `"users"."name" AS "foo"`,
+		},
+		{
+			name:   "implicit as",
+			column: ColumnWithName("users.name foo"),
+			want:   `"users"."name" AS "foo"`,
+		},
+		{
+			name: "raw",
+			column: &Column{
+				Name: Raw{
+					Value: "users.name As foo",
+				},
+			},
+			want: `users.name As foo`,
+		},
+		{
+			name:   "with asterisk",
+			column: ColumnWithName("*"),
+			want:   `*`,
+		},
+		{
+			name: "default fallback",
+			column: &Column{
+				Name: 857,
+			},
+			want: "857",
+		},
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := test.column.Compile(tmpl)
+			assert.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
+	}
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := ColumnWithName("users.name").Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, `"users"."name"`, got)
+	})
 }
 
-func TestColumnString(t *testing.T) {
-
-	column := Column{Name: "role.name"}
-
-	s, err := column.Compile(defaultTemplate())
-	if err != nil {
-		t.Fatal()
-	}
-
-	e := `"role"."name"`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
-}
-
-func TestColumnAs(t *testing.T) {
-	column := Column{Name: "role.name as foo"}
-
-	s, err := column.Compile(defaultTemplate())
-	if err != nil {
-		t.Fatal()
-	}
-
-	e := `"role"."name" AS "foo"`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
-}
-
-func TestColumnImplicitAs(t *testing.T) {
-	column := Column{Name: "role.name foo"}
-
-	s, err := column.Compile(defaultTemplate())
-	if err != nil {
-		t.Fatal()
-	}
-
-	e := `"role"."name" AS "foo"`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
-}
-
-func TestColumnRaw(t *testing.T) {
-	column := Column{Name: Raw{Value: "role.name As foo"}}
-
-	s, err := column.Compile(defaultTemplate())
-	if err != nil {
-		t.Fatal()
-	}
-
-	e := `role.name As foo`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
+func TestColumn_Hash(t *testing.T) {
+	c := ColumnWithName("users.name")
+	got := c.Hash()
+	want := "*exql.Column:3121935903895129804"
+	assert.Equal(t, want, got)
 }
