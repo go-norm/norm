@@ -36,9 +36,7 @@ func TestColumn(t *testing.T) {
 		{
 			name: "raw",
 			column: &Column{
-				Name: Raw{
-					Value: "users.name As foo",
-				},
+				Name: RawValue("users.name As foo"),
 			},
 			want: `users.name As foo`,
 		},
@@ -71,8 +69,7 @@ func TestColumn(t *testing.T) {
 }
 
 func TestColumn_Hash(t *testing.T) {
-	c := ColumnWithName("users.name")
-	got := c.Hash()
+	got := ColumnWithName("users.name").Hash()
 	want := "*exql.Column:3121935903895129804"
 	assert.Equal(t, want, got)
 }

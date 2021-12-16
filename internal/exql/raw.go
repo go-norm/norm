@@ -10,9 +10,7 @@ import (
 	"strings"
 )
 
-var (
-	_ = fmt.Stringer(&Raw{})
-)
+var _ Fragment = (*Raw)(nil)
 
 // Raw represents a value that is meant to be used in a query without escaping.
 type Raw struct {
@@ -20,26 +18,23 @@ type Raw struct {
 	hash  hash
 }
 
-// RawValue creates and returns a new raw value.
+// RawValue creates and returns a new raw value, surrounding spaces are trimmed.
 func RawValue(v string) *Raw {
 	return &Raw{
 		Value: strings.TrimSpace(v),
 	}
 }
 
-// Hash returns a unique identifier for the struct.
 func (r *Raw) Hash() string {
 	return r.hash.Hash(r)
 }
 
-// Compile returns the raw value.
 func (r *Raw) Compile(*Template) (string, error) {
 	return r.Value, nil
 }
 
-// String returns the raw value.
+var _ fmt.Stringer = (*Raw)(nil)
+
 func (r *Raw) String() string {
 	return r.Value
 }
-
-var _ = Fragment(&Raw{})
