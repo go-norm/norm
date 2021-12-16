@@ -109,6 +109,7 @@ func (t *Template) compile(f Fragment) (string, error) {
 	return f.Compile(t)
 }
 
+//go:generate go-mockgen --force unknwon.dev/norm/internal/exql -i emptiable -o mock_emptiable_test.go
 type emptiable interface {
 	Empty() bool
 }

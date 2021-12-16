@@ -77,6 +77,24 @@ func TestTemplate_Compile(t *testing.T) {
 			},
 			want: "*",
 		},
+		{
+			name: "empty fragment",
+			data: func() interface{} {
+				e := NewMockEmptiable()
+				e.EmptyFunc.SetDefaultReturn(true)
+				ef := struct {
+					Fragment
+					emptiable
+				}{
+					Fragment:  NewMockFragment(),
+					emptiable: e,
+				}
+				return map[string]Fragment{
+					"Columns": &ef,
+				}
+			},
+			want: "*",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
