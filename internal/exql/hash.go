@@ -21,6 +21,7 @@ func (h *hash) Hash(i interface{}) string {
 	if r, ok := v.(string); ok && r != "" {
 		return r
 	}
+
 	s := reflect.TypeOf(i).String() + ":" + cache.Hash(i)
 	h.v.Store(s)
 	return s
