@@ -11,15 +11,14 @@ import (
 
 // isBlankSymbol returns true if the given byte is either space, tab, carriage
 // return or newline.
-func isBlankSymbol(in byte) bool {
-	return in == ' ' || in == '\t' || in == '\r' || in == '\n'
+func isBlankSymbol(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\r' || b == '\n'
 }
 
 // trimString returns a slice of s with a leading and trailing blank symbols
 // (as defined by isBlankSymbol) removed.
 func trimString(s string) string {
 	start, end := 0, len(s)-1
-
 	if end < start {
 		return ""
 	}
@@ -34,7 +33,6 @@ func trimString(s string) string {
 	for isBlankSymbol(s[end]) {
 		end--
 	}
-
 	return s[start : end+1]
 }
 

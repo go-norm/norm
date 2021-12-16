@@ -7,67 +7,55 @@ package exql
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestUtilIsBlankSymbol(t *testing.T) {
-	if isBlankSymbol(' ') == false {
-		t.Fail()
+func TestIsBlankSymbol(t *testing.T) {
+	t.Run("yes", func(t *testing.T) {
+		for _, c := range []byte(" \n\t\r") {
+			assert.True(t, isBlankSymbol(c))
+		}
+	})
+
+	t.Run("no", func(t *testing.T) {
+		for _, c := range []byte("xyz") {
+			assert.False(t, isBlankSymbol(c))
+		}
+	})
+}
+
+func TestTrimString(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{
+			input: "  \t\nHello World!     \n",
+			want:  "Hello World!",
+		},
+		{
+			input: "Nope",
+			want:  "Nope",
+		},
+		{
+			input: "",
+			want:  "",
+		},
+		{
+			input: " ",
+			want:  "",
+		},
 	}
-	if isBlankSymbol('\n') == false {
-		t.Fail()
-	}
-	if isBlankSymbol('\t') == false {
-		t.Fail()
-	}
-	if isBlankSymbol('\r') == false {
-		t.Fail()
-	}
-	if isBlankSymbol('x') == true {
-		t.Fail()
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			got := trimString(test.input)
+			assert.Equal(t, test.want, got)
+		})
 	}
 }
 
-func TestUtilTrimString(t *testing.T) {
-
-	trimmed := trimString("  \t\nHello World!     \n")
-	if string(trimmed) != "Hello World!" {
-		t.Fatalf("Got: %s\n", trimmed)
-	}
-
-	trimmed = trimString("Nope")
-	if string(trimmed) != "Nope" {
-		t.Fatalf("Got: %s\n", trimmed)
-	}
-
-	trimmed = trimString("")
-	if string(trimmed) != "" {
-		t.Fatalf("Got: %s\n", trimmed)
-	}
-
-	trimmed = trimString(" ")
-	if string(trimmed) != "" {
-		t.Fatalf("Got: %s\n", trimmed)
-	}
-}
-
-func TestUtilSeparateBySpace(t *testing.T) {
-	chunks := separateBySpace("       Hello        World!        Enjoy")
-
-	if len(chunks) != 3 {
-		t.Fatal()
-	}
-
-	if chunks[0] != "Hello" {
-		t.Fatal()
-	}
-	if chunks[1] != "World!" {
-		t.Fatal()
-	}
-	if chunks[2] != "Enjoy" {
-		t.Fatal()
-	}
-}
-
+// todo
 func TestUtilSeparateByAS(t *testing.T) {
 	var chunks []string
 
@@ -168,5 +156,23 @@ func TestUtilSeparateByAS(t *testing.T) {
 
 	if chunks[1] != "bb" {
 		t.Fatal(`Expecting first result to be "bb".`)
+	}
+}
+
+func TestUtilSeparateBySpace(t *testing.T) {
+	chunks := separateBySpace("       Hello        World!        Enjoy")
+
+	if len(chunks) != 3 {
+		t.Fatal()
+	}
+
+	if chunks[0] != "Hello" {
+		t.Fatal()
+	}
+	if chunks[1] != "World!" {
+		t.Fatal()
+	}
+	if chunks[2] != "Enjoy" {
+		t.Fatal()
 	}
 }
