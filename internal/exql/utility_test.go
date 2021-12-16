@@ -175,4 +175,8 @@ func TestUtilSeparateBySpace(t *testing.T) {
 	if chunks[2] != "Enjoy" {
 		t.Fatal()
 	}
+
+	got := separateBySpace("")
+	want := []string{""}
+	assert.Equal(t, want, got)
 }
