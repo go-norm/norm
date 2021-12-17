@@ -11,10 +11,10 @@ import (
 )
 
 func TestHash(t *testing.T) {
-	s := "alice"
+	name := "alice"
 	h := hash{}
 	assert.Nil(t, h.v.Load())
-	h.Hash(s)
+	h.Hash(name)
 	assert.NotNil(t, h.v.Load())
 
 	h.Reset()

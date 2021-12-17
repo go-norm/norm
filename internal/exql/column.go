@@ -6,33 +6,46 @@
 package exql
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
 )
 
-var _ Fragment = (*Column)(nil)
+var _ Fragment = (*ColumnFragment)(nil)
 
-// Column represents a SQL column.
-type Column struct {
+// ColumnFragment is a column in the SQL statement.
+//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
+type ColumnFragment struct {
+	hash  hash
 	Name  interface{}
 	Alias string
-	hash  hash
 }
 
-// ColumnWithName creates and returns a Column with the given name.
-func ColumnWithName(name string) *Column {
-	return &Column{Name: name}
+// Column constructs a ColumnFragment with the given name, where the name can be
+// a string or RawFragment.
+//
+// When a string is passed as the name, the alias is recognized with a
+// case-insensitive "AS" or whitespace(s):
+//
+//   => users.name AS foo
+//   Column("users.name AS foo")
+//   Column("users.name foo")
+func Column(name interface{}) *ColumnFragment {
+	return &ColumnFragment{
+		Name: name,
+	}
 }
 
-func (c *Column) Hash() string {
+func (c *ColumnFragment) Hash() string {
 	return c.hash.Hash(c)
 }
 
-func (c *Column) Compile(t *Template) (compiled string, err error) {
-	if z, ok := t.Get(c); ok {
-		return z, nil
+func (c *ColumnFragment) Compile(t *Template) (compiled string, err error) {
+	if v, ok := t.Get(c); ok {
+		return v, nil
 	}
 
 	alias := c.Alias
@@ -51,7 +64,7 @@ func (c *Column) Compile(t *Template) (compiled string, err error) {
 			if nameChunks[i] == "*" {
 				continue
 			}
-			nameChunks[i], err = t.Compile(LayoutIdentifierQuote, Raw{Value: nameChunks[i]})
+			nameChunks[i], err = t.Compile(LayoutIdentifierQuote, Raw(nameChunks[i]))
 			if err != nil {
 				return "", errors.Wrapf(err, "compile LayoutIdentifierQuote with name %q", nameChunks[i])
 			}
@@ -61,16 +74,16 @@ func (c *Column) Compile(t *Template) (compiled string, err error) {
 
 		if len(chunks) > 1 {
 			alias = trimString(chunks[1])
-			alias, err = t.Compile(LayoutIdentifierQuote, Raw{Value: alias})
+			alias, err = t.Compile(LayoutIdentifierQuote, Raw(alias))
 			if err != nil {
 				return "", errors.Wrapf(err, "compile LayoutIdentifierQuote with alias %q", alias)
 			}
 		}
 
-	case Raw:
+	case *RawFragment:
 		compiled = v.String()
 	default:
-		compiled = fmt.Sprintf("%v", c.Name)
+		return "", errors.Errorf("unsupported column name type %T", v)
 	}
 
 	if alias != "" {

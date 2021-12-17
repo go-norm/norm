@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"unknwon.dev/norm/expr"
 )
 
 func TestNewTemplate(t *testing.T) {
@@ -119,7 +121,7 @@ func TestTemplate_Compile(t *testing.T) {
 	}
 }
 
-func defaultTemplate(t *testing.T) *Template {
+func defaultTemplate(t testing.TB) *Template {
 	const (
 		defaultAndKeyword         = `AND`
 		defaultAscKeyword         = `ASC`
@@ -162,7 +164,7 @@ DELETE
       GROUP BY {{.GroupColumns}}
     {{end}}
   `
-		defaultIdentifierQuote     = `"{{.Value}}"`
+		defaultIdentifierQuote     = `"{{.}}"`
 		defaultIdentifierSeparator = `, `
 		defaultInsert              = `
 INSERT INTO {{.Table | compile}}
@@ -287,7 +289,14 @@ SET {{.ColumnValues | compile}}
 			LayoutValueSeparator:      defaultValueSeparator,
 			LayoutWhere:               defaultWhere,
 		},
-		nil,
+		map[expr.ComparisonOperator]string{
+			expr.ComparisonEqual:                "=",
+			expr.ComparisonNotEqual:             "!=",
+			expr.ComparisonLessThan:             "<",
+			expr.ComparisonGreaterThan:          ">",
+			expr.ComparisonLessThanOrEqualTo:    "<=",
+			expr.ComparisonGreaterThanOrEqualTo: ">=",
+		},
 	)
 	if err != nil {
 		t.Fatalf("Failed to create new template: %v", err)
