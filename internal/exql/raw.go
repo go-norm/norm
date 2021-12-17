@@ -7,34 +7,37 @@ package exql
 
 import (
 	"fmt"
-	"strings"
 )
 
-var _ Fragment = (*Raw)(nil)
+var _ Fragment = (*RawFragment)(nil)
 
-// Raw represents a value that is meant to be used in a query without escaping.
-type Raw struct {
-	Value string // Value should not be modified after assigned.
+// RawFragment is a value that is meant to be used in a query without escaping.
+//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
+type RawFragment struct {
 	hash  hash
+	Value string
 }
 
-// RawValue creates and returns a new raw value, surrounding spaces are trimmed.
-func RawValue(v string) *Raw {
-	return &Raw{
-		Value: strings.TrimSpace(v),
+// Raw constructs a RawFragment with the given value.
+func Raw(value string) *RawFragment {
+	return &RawFragment{
+		Value: value,
 	}
 }
 
-func (r *Raw) Hash() string {
+func (r *RawFragment) Hash() string {
 	return r.hash.Hash(r)
 }
 
-func (r *Raw) Compile(*Template) (string, error) {
+func (r *RawFragment) Compile(*Template) (string, error) {
 	return r.Value, nil
 }
 
-var _ fmt.Stringer = (*Raw)(nil)
+var _ fmt.Stringer = (*RawFragment)(nil)
 
-func (r *Raw) String() string {
+func (r *RawFragment) String() string {
 	return r.Value
 }

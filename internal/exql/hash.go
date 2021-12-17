@@ -30,3 +30,5 @@ func (h *hash) Hash(i interface{}) string {
 func (h *hash) Reset() {
 	h.v.Store("")
 }
+
+type hashMap map[string]interface{}
