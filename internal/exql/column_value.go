@@ -84,7 +84,7 @@ type ColumnValuesFragment struct {
 	ColumnValues []*ColumnValueFragment
 }
 
-// ColumnValues constructs a ColumnValuesFragment with the given values.
+// ColumnValues constructs a ColumnValuesFragment with the given column values.
 func ColumnValues(values ...*ColumnValueFragment) *ColumnValuesFragment {
 	return &ColumnValuesFragment{
 		ColumnValues: values,
@@ -108,7 +108,7 @@ func (cvs *ColumnValuesFragment) Compile(t *Template) (compiled string, err erro
 	for i := range cvs.ColumnValues {
 		out[i], err = cvs.ColumnValues[i].Compile(t)
 		if err != nil {
-			return "", errors.Wrap(err, "compile column values")
+			return "", errors.Wrap(err, "compile column value")
 		}
 	}
 
@@ -117,7 +117,7 @@ func (cvs *ColumnValuesFragment) Compile(t *Template) (compiled string, err erro
 	return compiled, nil
 }
 
-// Append appends the new values to the list.
+// Append appends given column values to the ColumnValuesFragment.
 func (cvs *ColumnValuesFragment) Append(values ...*ColumnValueFragment) *ColumnValuesFragment {
 	cvs.ColumnValues = append(cvs.ColumnValues, values...)
 	cvs.hash.Reset()

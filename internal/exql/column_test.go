@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestColumn(t *testing.T) {
@@ -63,4 +64,45 @@ func TestColumn(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, `"users"."name"`, got)
 	})
+}
+
+func TestColumns(t *testing.T) {
+	cs := Columns(
+		Column("id"),
+		Column("customer"),
+		Column("service_id"),
+		Column("users.name"),
+		Column("users.id"),
+	)
+	tmpl := defaultTemplate(t)
+
+	got, err := cs.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `"id", "customer", "service_id", "users"."name", "users"."id"`
+	assert.Equal(t, want, got)
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := cs.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
+}
+
+func TestColumns_Append(t *testing.T) {
+	cs := Columns()
+	tmpl := defaultTemplate(t)
+
+	got, err := cs.Compile(tmpl)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+
+	cs.Append(
+		Column("id"),
+	)
+	got, err = cs.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `"id"`
+	assert.Equal(t, want, got)
 }

@@ -76,9 +76,9 @@ func (w *WhereFragment) Compile(t *Template) (string, error) {
 	return compiled, nil
 }
 
-// Append appends the conditions of another WhereFragment to the current one.
-func (w *WhereFragment) Append(a *WhereFragment) *WhereFragment {
-	w.Conditions = append(w.Conditions, a.Conditions...)
+// Append appends given conditions to the WhereFragment.
+func (w *WhereFragment) Append(conds ...Fragment) *WhereFragment {
+	w.Conditions = append(w.Conditions, conds...)
 	w.hash.Reset()
 	return w
 }

@@ -100,3 +100,61 @@ func (c *ColumnFragment) Compile(t *Template) (compiled string, err error) {
 	t.Set(c, compiled)
 	return compiled, nil
 }
+
+var _ Fragment = (*ColumnsFragment)(nil)
+
+// ColumnsFragment is a list of ColumnFragment.
+//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
+type ColumnsFragment struct {
+	hash    hash
+	Columns []*ColumnFragment
+}
+
+// Columns constructs a ColumnsFragment with the given columns.
+func Columns(columns ...*ColumnFragment) *ColumnsFragment {
+	return &ColumnsFragment{
+		Columns: columns,
+	}
+}
+
+func (cs *ColumnsFragment) Hash() string {
+	return cs.hash.Hash(cs)
+}
+
+func (cs *ColumnsFragment) Compile(t *Template) (compiled string, err error) {
+	if v, ok := t.Get(cs); ok {
+		return v, nil
+	}
+
+	if cs.Empty() {
+		return "", nil
+	}
+
+	out := make([]string, len(cs.Columns))
+	for i := range cs.Columns {
+		out[i], err = cs.Columns[i].Compile(t)
+		if err != nil {
+			return "", errors.Wrap(err, "compile column")
+		}
+	}
+
+	compiled = strings.TrimSpace(strings.Join(out, t.layouts[LayoutIdentifierSeparator]))
+	t.Set(cs, compiled)
+	return compiled, nil
+}
+
+// Append appends given columns to the ColumnsFragment.
+func (cs *ColumnsFragment) Append(columns ...*ColumnFragment) *ColumnsFragment {
+	cs.Columns = append(cs.Columns, columns...)
+	cs.hash.Reset()
+	return cs
+}
+
+var _ emptiable = (*ColumnsFragment)(nil)
+
+func (cs *ColumnsFragment) Empty() bool {
+	return cs == nil || len(cs.Columns) == 0
+}

@@ -47,9 +47,7 @@ func TestWhere_Append(t *testing.T) {
 	assert.Empty(t, got)
 
 	w.Append(
-		Where(
-			ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
-		),
+		ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
 	)
 	got, err = w.Compile(tmpl)
 	require.NoError(t, err)
@@ -135,9 +133,7 @@ func TestWhere_And_Or(t *testing.T) {
 				ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Reyes'`)),
 			),
 		).Append(
-			Where(
-				Raw("city_id = 728"),
-			),
+			Raw("city_id = 728"),
 		)
 
 	got, err := w.Compile(defaultTemplate(t))
