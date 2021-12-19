@@ -68,15 +68,19 @@ func (ob *OrderByFragment) Compile(t *Template) (compiled string, err error) {
 type SortOrder uint8
 
 const (
-	SortAscendant = SortOrder(iota)
+	_ = SortOrder(iota)
+	SortAscendant
 	SortDescendent
 )
 
 func (so SortOrder) compile(t *Template) string {
-	if so == SortDescendent {
+	switch so {
+	case SortAscendant:
+		return t.layouts[LayoutAscKeyword]
+	case SortDescendent:
 		return t.layouts[LayoutDescKeyword]
 	}
-	return t.layouts[LayoutAscKeyword]
+	return ""
 }
 
 var _ Fragment = (*SortColumnFragment)(nil)
@@ -93,11 +97,11 @@ type SortColumnFragment struct {
 	Order  SortOrder
 }
 
-// SortColumn constructs a SortColumnFragment with the given column and an
-// optional order. If the order is omitted, the default SortAscendant is used.
-func SortColumn(column *ColumnFragment, order ...SortOrder) *SortColumnFragment {
+// SortColumn constructs a SortColumnFragment with the given column name and an
+// optional order, where the column name can be a string or RawFragment.
+func SortColumn(name interface{}, order ...SortOrder) *SortColumnFragment {
 	sc := &SortColumnFragment{
-		Column: column,
+		Column: Column(name),
 	}
 	if len(order) > 0 {
 		sc.Order = order[0]
@@ -128,6 +132,7 @@ func (sc *SortColumnFragment) Compile(t *Template) (string, error) {
 		return "", errors.Wrapf(err, "compile LayoutSortByColumn with data %v", data)
 	}
 
+	compiled = strings.TrimSpace(compiled)
 	t.Set(sc, compiled)
 	return compiled, nil
 }

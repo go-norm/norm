@@ -6,7 +6,6 @@
 package exql
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,65 +21,40 @@ func TestOrderBy(t *testing.T) {
 		assert.Empty(t, got)
 	})
 
-	gb := GroupBy(
-		Column("id"),
-		Column("customer"),
-		Column("service_id"),
-		Column("users.name"),
-		Column("users.id"),
+	ob := OrderBy(
+		SortColumn("id"),
+		SortColumn("customer"),
+		SortColumn("service_id", SortAscendant),
+		SortColumn("users.name", SortDescendent),
+		SortColumn("users.id"),
+		SortColumn(Raw("CASE WHEN id IN ? THEN 0 ELSE 1 END")),
 	)
 
-	got, err := gb.Compile(tmpl)
+	got, err := ob.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := `GROUP BY "id", "customer", "service_id", "users"."name", "users"."id"`
-	assert.Equal(t, want, strings.TrimSpace(got))
+	want := `ORDER BY "id", "customer", "service_id" ASC, "users"."name" DESC, "users"."id", CASE WHEN id IN ? THEN 0 ELSE 1 END`
+	assert.Equal(t, want, stripWhitespace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
-		got, err := gb.Compile(tmpl)
+		got, err := ob.Compile(tmpl)
 		assert.NoError(t, err)
-		assert.Equal(t, want, strings.TrimSpace(got))
+		assert.Equal(t, want, stripWhitespace(got))
 	})
 }
 
-func TestOrderBy2(t *testing.T) {
-	o := OrderBy(
-		JoinSortColumns(
-			&SortColumnFragment{Column: &ColumnFragment{Name: "foo"}},
-		),
-	)
+func TestSortColumn(t *testing.T) {
+	sc := SortColumn("id")
+	tmpl := defaultTemplate(t)
+	got, err := sc.Compile(tmpl)
+	require.NoError(t, err)
 
-	s := mustTrim(o.Compile(defaultTemplate))
-	e := `ORDER BY "foo"`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
-}
+	want := `"id"`
+	assert.Equal(t, want, stripWhitespace(got))
 
-func TestOrderByRaw(t *testing.T) {
-	o := OrderBy(
-		JoinSortColumns(
-			&SortColumnFragment{Column: RawValue("CASE WHEN id IN ? THEN 0 ELSE 1 END")},
-		),
-	)
-
-	s := mustTrim(o.Compile(defaultTemplate))
-	e := `ORDER BY CASE WHEN id IN ? THEN 0 ELSE 1 END`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
-}
-
-func TestOrderByDesc(t *testing.T) {
-	o := OrderBy(
-		JoinSortColumns(
-			&SortColumnFragment{Column: &ColumnFragment{Name: "foo"}, SortOrder: SortDescendent},
-		),
-	)
-
-	s := mustTrim(o.Compile(defaultTemplate))
-	e := `ORDER BY "foo" DESC`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := sc.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, stripWhitespace(got))
+	})
 }
