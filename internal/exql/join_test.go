@@ -19,6 +19,36 @@ func TestJoin(t *testing.T) {
 
 }
 
+func TestJoinOn(t *testing.T) {
+	tmpl := defaultTemplate(t)
+
+	t.Run("no table", func(t *testing.T) {
+		got, err := JoinOn(DefaultJoin, nil, nil).Compile(tmpl)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	join := JoinOn(DefaultJoin,
+		Table("countries c"),
+		On(
+			ColumnValue(Column("p.country_id"), expr.ComparisonEqual, Column("a.id")),
+			ColumnValue(Column("p.country_code"), expr.ComparisonEqual, Column("a.code")),
+		),
+	)
+
+	got, err := join.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `JOIN "countries" AS "c" ON ("p"."country_id" = "a"."id" AND "p"."country_code" = "a"."code")`
+	assert.Equal(t, want, stripWhitespace(got))
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := join.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, stripWhitespace(got))
+	})
+}
+
 func TestOn(t *testing.T) {
 	tmpl := defaultTemplate(t)
 
@@ -49,13 +79,13 @@ func TestOn(t *testing.T) {
 	got, err := on.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := `(("id" > 8 AND "id" < 99 AND ("age" < 18 OR "age" > 41)) AND "name" = 'John' AND ("last_name" = 'Smith' OR "last_name" = 'Reyes') AND city_id = 728)`
+	want := `ON (("id" > 8 AND "id" < 99 AND ("age" < 18 OR "age" > 41)) AND "name" = 'John' AND ("last_name" = 'Smith' OR "last_name" = 'Reyes') AND city_id = 728)`
 	assert.Equal(t, want, strings.TrimSpace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
 		got, err := on.Compile(tmpl)
 		assert.NoError(t, err)
-		assert.Equal(t, want, got)
+		assert.Equal(t, want, strings.TrimSpace(got))
 	})
 }
 
@@ -89,34 +119,6 @@ func TestUsing(t *testing.T) {
 	})
 }
 
-// func TestJoinOn(t *testing.T) {
-// 	var s, e string
-//
-// 	join := JoinConditions(
-// 		&JoinFragment{
-// 			Table: Table("countries c"),
-// 			On: On(
-// 				&ColumnValueFragment{
-// 					Column:   &ColumnFragment{Name: "p.country_id"},
-// 					Operator: "=",
-// 					Value:    NewValue(&ColumnFragment{Name: "a.id"}),
-// 				},
-// 				&ColumnValueFragment{
-// 					Column:   &ColumnFragment{Name: "p.country_code"},
-// 					Operator: "=",
-// 					Value:    NewValue(&ColumnFragment{Name: "a.code"}),
-// 				},
-// 			),
-// 		},
-// 	)
-//
-// 	s = mustTrim(join.Compile(defaultTemplate))
-// 	e = `JOIN "countries" AS "c" ON ("p"."country_id" = "a"."id" AND "p"."country_code" = "a"."code")`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
 //
 // func TestInnerJoinOn(t *testing.T) {
 // 	var s, e string

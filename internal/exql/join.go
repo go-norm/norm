@@ -35,6 +35,25 @@ type JoinFragment struct {
 	Using *UsingFragment
 }
 
+// JoinOn constructs a JoinFragment with the given type, table and on clause.
+func JoinOn(typ JoinType, table *TableFragment, on *OnFragment) *JoinFragment {
+	return &JoinFragment{
+		Type:  typ,
+		Table: table,
+		On:    on,
+	}
+}
+
+// JoinUsing constructs a JoinFragment with the given type, table and using
+// clause.
+func JoinUsing(typ JoinType, table *TableFragment, using *UsingFragment) *JoinFragment {
+	return &JoinFragment{
+		Type:  typ,
+		Table: table,
+		Using: using,
+	}
+}
+
 func (j *JoinFragment) Hash() string {
 	return j.hash.Hash(j)
 }
@@ -109,9 +128,17 @@ func (on *OnFragment) Compile(t *Template) (string, error) {
 		return "", errors.Wrapf(err, "compile LayoutClauseOperator with keyword %q", t.layouts[LayoutAndKeyword])
 	}
 
-	compiled, err := groupConditions(t, on.Conditions, groupKeyword)
+	grouped, err := groupConditions(t, on.Conditions, groupKeyword)
 	if err != nil {
 		return "", errors.Wrap(err, "group conditions")
+	}
+
+	data := map[string]interface{}{
+		"Conds": grouped,
+	}
+	compiled, err := t.Compile(LayoutOn, data)
+	if err != nil {
+		return "", errors.Wrapf(err, "compile LayoutOn with data %v", data)
 	}
 
 	t.Set(on, compiled)

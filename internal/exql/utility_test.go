@@ -6,6 +6,7 @@
 package exql
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -125,4 +126,9 @@ func TestSeparateBySpace(t *testing.T) {
 			assert.Equal(t, test.want, got)
 		})
 	}
+}
+
+func stripWhitespace(s string) string {
+	s = InvisibleCharsRegexp.ReplaceAllString(s, ` `)
+	return strings.TrimSpace(s)
 }

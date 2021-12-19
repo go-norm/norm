@@ -6,6 +6,7 @@
 package exql
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -80,3 +81,5 @@ func separateBySpace(s string) []string {
 	}
 	return out
 }
+
+var InvisibleCharsRegexp = regexp.MustCompile(`[\s\r\n\t]+`)
