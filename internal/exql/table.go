@@ -88,9 +88,9 @@ func (t *TableFragment) Compile(tmpl *Template) (compiled string, err error) {
 			"Name":  compiled,
 			"Alias": alias,
 		}
-		compiled, err = tmpl.Compile(LayoutColumnAlias, data)
+		compiled, err = tmpl.Compile(LayoutTableAlias, data)
 		if err != nil {
-			return "", errors.Wrapf(err, "compile LayoutColumnAlias with data %v", data)
+			return "", errors.Wrapf(err, "compile LayoutTableAlias with data %v", data)
 		}
 	}
 
