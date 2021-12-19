@@ -6,6 +6,8 @@
 package exql
 
 import (
+	"strings"
+
 	"github.com/pkg/errors"
 )
 
@@ -197,50 +199,47 @@ func (u *UsingFragment) Compile(t *Template) (string, error) {
 	return compiled, nil
 }
 
-// // Joins represents the union of different join conditions.
-// type Joins struct {
-// 	Conditions []Fragment
-// 	hash       hash
-// }
+var _ Fragment = (*JoinsFragment)(nil)
+
+// JoinsFragment is a list of JoinFragment.
 //
-// var _ = Fragment(&Joins{})
-//
-// // Hash returns a unique identifier for the struct.
-// func (j *Joins) Hash() string {
-// 	return j.hash.Hash(j)
-// }
-//
-// // Compile transforms the WhereFragment into an equivalent SQL representation.
-// func (j *Joins) Compile(layout *Template) (string, error) {
-// 	if c, ok := layout.Get(j); ok {
-// 		return c, nil
-// 	}
-//
-// 	l := len(j.Conditions)
-//
-// 	chunks := make([]string, 0, l)
-//
-// 	if l > 0 {
-// 		for i := 0; i < l; i++ {
-// 			chunk, err := j.Conditions[i].Compile(layout)
-// 			if err != nil {
-// 				return "", err
-// 			}
-// 			chunks = append(chunks, chunk)
-// 		}
-// 	}
-//
-// 	compiled := strings.Join(chunks, " ")
-// 	layout.Set(j, compiled)
-// 	return compiled, nil
-// }
-//
-// // JoinConditions creates a Joins object.
-// func JoinConditions(joins ...*JoinFragment) *Joins {
-// 	fragments := make([]Fragment, len(joins))
-// 	for i := range fragments {
-// 		fragments[i] = joins[i]
-// 	}
-// 	return &Joins{Conditions: fragments}
-// }
-//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
+type JoinsFragment struct {
+	hash  hash
+	Joins []*JoinFragment
+}
+
+// Joins constructs a JoinsFragment with the given joins.
+func Joins(joins ...*JoinFragment) *JoinsFragment {
+	return &JoinsFragment{
+		Joins: joins,
+	}
+}
+
+func (js *JoinsFragment) Hash() string {
+	return js.hash.Hash(js)
+}
+
+func (js *JoinsFragment) Compile(t *Template) (compiled string, err error) {
+	if len(js.Joins) == 0 {
+		return "", nil
+	}
+
+	if v, ok := t.Get(js); ok {
+		return v, nil
+	}
+
+	out := make([]string, len(js.Joins))
+	for i := range js.Joins {
+		out[i], err = js.Joins[i].Compile(t)
+		if err != nil {
+			return "", errors.Wrap(err, "compile join")
+		}
+	}
+
+	compiled = strings.TrimSpace(strings.Join(out, " "))
+	t.Set(js, compiled)
+	return compiled, nil
+}

@@ -187,21 +187,29 @@ func TestUsing(t *testing.T) {
 	})
 }
 
-//
-// func TestMultipleJoins(t *testing.T) {
-// 	var s, e string
-//
-// 	join := JoinConditions(&JoinFragment{
-// 		Type:  "LEFT",
-// 		Table: Table("countries"),
-// 	}, &JoinFragment{
-// 		Table: Table("cities"),
-// 	})
-//
-// 	s = mustTrim(join.Compile(defaultTemplate))
-// 	e = `NATURAL LEFT JOIN "countries" NATURAL JOIN "cities"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
+func TestJoins(t *testing.T) {
+	tmpl := defaultTemplate(t)
+
+	t.Run("empty", func(t *testing.T) {
+		got, err := Joins().Compile(tmpl)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	js := Joins(
+		Join(Table("users")),
+		JoinUsing(FullJoin, Table("users"), Using(Column("users.id"))),
+	)
+
+	got, err := js.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `NATURAL JOIN "users" FULL JOIN "users" USING ("users"."id")`
+	assert.Equal(t, want, stripWhitespace(got))
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := js.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, stripWhitespace(got))
+	})
+}
