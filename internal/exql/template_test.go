@@ -201,7 +201,7 @@ VALUES
 `
 		defaultReturning = `
 {{if .Columns}}
-  RETURNING {{.Columns | compile}}
+  RETURNING {{.Columns}}
 {{end}}
 `
 		defaultSelect = `
