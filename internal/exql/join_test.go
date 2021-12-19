@@ -6,57 +6,89 @@
 package exql
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"unknwon.dev/norm/expr"
 )
 
 func TestJoin(t *testing.T) {
 
 }
 
-// func TestOnAndRawOrAnd(t *testing.T) {
-// 	var s, e string
-//
-// 	on := On(
-// 		And(
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "id"}, Operator: ">", Value: NewValue(&RawFragment{Value: "8"})},
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "id"}, Operator: "<", Value: NewValue(&RawFragment{Value: "99"})},
-// 		),
-// 		&ColumnValueFragment{Column: &ColumnFragment{Name: "name"}, Operator: "=", Value: NewValue("John")},
-// 		&RawFragment{Value: "city_id = 728"},
-// 		Or(
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "last_name"}, Operator: "=", Value: NewValue("Smith")},
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "last_name"}, Operator: "=", Value: NewValue("Reyes")},
-// 		),
-// 		And(
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "age"}, Operator: ">", Value: NewValue(&RawFragment{Value: "18"})},
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "age"}, Operator: "<", Value: NewValue(&RawFragment{Value: "41"})},
-// 		),
-// 	)
-//
-// 	s = mustTrim(on.Compile(defaultTemplate))
-// 	e = `ON (("id" > 8 AND "id" < 99) AND "name" = 'John' AND city_id = 728 AND ("last_name" = 'Smith' OR "last_name" = 'Reyes') AND ("age" > 18 AND "age" < 41))`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestUsing(t *testing.T) {
-// 	var s, e string
-//
-// 	using := Using(
-// 		&ColumnFragment{Name: "country"},
-// 		&ColumnFragment{Name: "state"},
-// 	)
-//
-// 	s = mustTrim(using.Compile(defaultTemplate))
-// 	e = `USING ("country", "state")`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
+func TestOn(t *testing.T) {
+	tmpl := defaultTemplate(t)
+
+	t.Run("empty", func(t *testing.T) {
+		got, err := On().Compile(tmpl)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	on :=
+		On(
+			And(
+				ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
+				ColumnValue(Column("id"), expr.ComparisonLessThan, Raw("99")),
+				Or(
+					ColumnValue(Column("age"), expr.ComparisonLessThan, Raw("18")),
+					ColumnValue(Column("age"), expr.ComparisonGreaterThan, Raw("41")),
+				),
+			),
+			ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'John'`)),
+			Or(
+				ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Smith'`)),
+				ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Reyes'`)),
+			),
+			Raw("city_id = 728"),
+		)
+
+	got, err := on.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `(("id" > 8 AND "id" < 99 AND ("age" < 18 OR "age" > 41)) AND "name" = 'John' AND ("last_name" = 'Smith' OR "last_name" = 'Reyes') AND city_id = 728)`
+	assert.Equal(t, want, strings.TrimSpace(got))
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := on.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
+}
+
+func TestUsing(t *testing.T) {
+	tmpl := defaultTemplate(t)
+
+	t.Run("empty", func(t *testing.T) {
+		got, err := Using().Compile(tmpl)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	using := Using(
+		Column("id"),
+		Column("customer"),
+		Column("service_id"),
+		Column("users.name"),
+		Column("users.id"),
+	)
+
+	got, err := using.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `USING ("id", "customer", "service_id", "users"."name", "users"."id")`
+	assert.Equal(t, want, strings.TrimSpace(got))
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := using.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, strings.TrimSpace(got))
+	})
+}
+
 // func TestJoinOn(t *testing.T) {
 // 	var s, e string
 //

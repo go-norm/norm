@@ -12,7 +12,13 @@ import (
 // JoinType is the type of the JOIN clause.
 type JoinType string
 
-const ()
+const (
+	DefaultJoin JoinType = ""
+	FullJoin    JoinType = "FULL"
+	CrossJoin   JoinType = "CROSS"
+	RightJoin   JoinType = "RIGHT"
+	LeftJoin    JoinType = "LEFT"
+)
 
 var _ Fragment = (*JoinFragment)(nil)
 
