@@ -16,19 +16,63 @@ import (
 )
 
 func TestJoin(t *testing.T) {
-
-}
-
-func TestJoinOn(t *testing.T) {
 	tmpl := defaultTemplate(t)
 
 	t.Run("no table", func(t *testing.T) {
-		got, err := JoinOn(DefaultJoin, nil, nil).Compile(tmpl)
+		got, err := Join(nil).Compile(tmpl)
 		require.NoError(t, err)
 		assert.Empty(t, got)
 	})
 
-	join := JoinOn(DefaultJoin,
+	tests := []struct {
+		name string
+		join *JoinFragment
+		want string
+	}{
+		{
+			name: "natural",
+			join: Join(Table("users")),
+			want: `NATURAL JOIN "users"`,
+		},
+		{
+			name: "natural full",
+			join: JoinUsing(FullJoin, Table("users"), nil),
+			want: `NATURAL FULL JOIN "users"`,
+		},
+		{
+			name: "full",
+			join: JoinUsing(FullJoin, Table("users"), Using(Column("users.id"))),
+			want: `FULL JOIN "users" USING ("users"."id")`,
+		},
+		{
+			name: "cross",
+			join: JoinUsing(CrossJoin, Table("users"), Using(Column("users.id"))),
+			want: `CROSS JOIN "users" USING ("users"."id")`,
+		},
+		{
+			name: "right",
+			join: JoinUsing(RightJoin, Table("users"), Using(Column("users.id"))),
+			want: `RIGHT JOIN "users" USING ("users"."id")`,
+		},
+		{
+			name: "left",
+			join: JoinUsing(LeftJoin, Table("users"), Using(Column("users.id"))),
+			want: `LEFT JOIN "users" USING ("users"."id")`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := test.join.Compile(tmpl)
+			require.NoError(t, err)
+			assert.Equal(t, test.want, stripWhitespace(got))
+		})
+	}
+}
+
+func TestJoinOn(t *testing.T) {
+	tmpl := defaultTemplate(t)
+	join := JoinOn(
+		DefaultJoin,
 		Table("countries c"),
 		On(
 			ColumnValue(Column("p.country_id"), expr.ComparisonEqual, Column("a.id")),
@@ -40,6 +84,30 @@ func TestJoinOn(t *testing.T) {
 	require.NoError(t, err)
 
 	want := `JOIN "countries" AS "c" ON ("p"."country_id" = "a"."id" AND "p"."country_code" = "a"."code")`
+	assert.Equal(t, want, stripWhitespace(got))
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := join.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, stripWhitespace(got))
+	})
+}
+
+func TestJoinUsing(t *testing.T) {
+	tmpl := defaultTemplate(t)
+	join := JoinUsing(
+		DefaultJoin,
+		Table("countries c"),
+		Using(
+			Column("p.country_id"),
+			Column("p.country_code"),
+		),
+	)
+
+	got, err := join.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `JOIN "countries" AS "c" USING ("p"."country_id", "p"."country_code")`
 	assert.Equal(t, want, stripWhitespace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
@@ -119,98 +187,6 @@ func TestUsing(t *testing.T) {
 	})
 }
 
-//
-// func TestInnerJoinOn(t *testing.T) {
-// 	var s, e string
-//
-// 	join := JoinConditions(&JoinFragment{
-// 		Type:  "INNER",
-// 		Table: Table("countries c"),
-// 		On: On(
-// 			&ColumnValueFragment{
-// 				Column:   &ColumnFragment{Name: "p.country_id"},
-// 				Operator: "=",
-// 				Value:    NewValue(ColumnWithName("a.id")),
-// 			},
-// 			&ColumnValueFragment{
-// 				Column:   &ColumnFragment{Name: "p.country_code"},
-// 				Operator: "=",
-// 				Value:    NewValue(ColumnWithName("a.code")),
-// 			},
-// 		),
-// 	})
-//
-// 	s = mustTrim(join.Compile(defaultTemplate))
-// 	e = `INNER JOIN "countries" AS "c" ON ("p"."country_id" = "a"."id" AND "p"."country_code" = "a"."code")`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestLeftJoinUsing(t *testing.T) {
-// 	var s, e string
-//
-// 	join := JoinConditions(&JoinFragment{
-// 		Type:  "LEFT",
-// 		Table: Table("countries"),
-// 		Using: Using(ColumnWithName("name")),
-// 	})
-//
-// 	s = mustTrim(join.Compile(defaultTemplate))
-// 	e = `LEFT JOIN "countries" USING ("name")`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestNaturalJoinOn(t *testing.T) {
-// 	var s, e string
-//
-// 	join := JoinConditions(&JoinFragment{
-// 		Table: Table("countries"),
-// 	})
-//
-// 	s = mustTrim(join.Compile(defaultTemplate))
-// 	e = `NATURAL JOIN "countries"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestNaturalInnerJoinOn(t *testing.T) {
-// 	var s, e string
-//
-// 	join := JoinConditions(&JoinFragment{
-// 		Type:  "INNER",
-// 		Table: Table("countries"),
-// 	})
-//
-// 	s = mustTrim(join.Compile(defaultTemplate))
-// 	e = `NATURAL INNER JOIN "countries"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestCrossJoin(t *testing.T) {
-// 	var s, e string
-//
-// 	join := JoinConditions(&JoinFragment{
-// 		Type:  "CROSS",
-// 		Table: Table("countries"),
-// 	})
-//
-// 	s = mustTrim(join.Compile(defaultTemplate))
-// 	e = `CROSS JOIN "countries"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
 //
 // func TestMultipleJoins(t *testing.T) {
 // 	var s, e string

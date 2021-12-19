@@ -35,6 +35,14 @@ type JoinFragment struct {
 	Using *UsingFragment
 }
 
+// Join constructs a JoinFragment with the given table as a NATURAL JOIN.
+func Join(table *TableFragment) *JoinFragment {
+	return &JoinFragment{
+		Type:  DefaultJoin,
+		Table: table,
+	}
+}
+
 // JoinOn constructs a JoinFragment with the given type, table and on clause.
 func JoinOn(typ JoinType, table *TableFragment, on *OnFragment) *JoinFragment {
 	return &JoinFragment{
