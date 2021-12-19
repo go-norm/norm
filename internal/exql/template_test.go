@@ -144,7 +144,7 @@ FROM {{.Table | compile}}
   {{if .Offset}}
 	OFFSET {{.Offset}}
   {{end}}
-  `
+`
 		defaultDelete = `
 DELETE
   FROM {{.Table | compile}}
@@ -155,15 +155,15 @@ DELETE
 {{if .Offset}}
   OFFSET {{.Offset}}
 {{end}}
-  `
+`
 		defaultDescKeyword  = `DESC`
 		defaultDropDatabase = `DROP DATABASE {{.Database | compile}}`
 		defaultDropTable    = `DROP TABLE {{.Table | compile}}`
 		defaultGroupBy      = `
-    {{if .GroupColumns}}
-      GROUP BY {{.GroupColumns}}
-    {{end}}
-  `
+{{if .Columns}}
+  GROUP BY {{.Columns}}
+{{end}}
+`
 		defaultIdentifierQuote     = `"{{.}}"`
 		defaultIdentifierSeparator = `, `
 		defaultInsert              = `
@@ -174,7 +174,7 @@ VALUES
 {{if .Returning}}
   RETURNING {{.Returning | compile}}
 {{end}}
-  `
+`
 		defaultJoin = `
 {{if .Table}}
   {{ if .On }}
@@ -189,18 +189,18 @@ VALUES
 	NATURAL {{.Type}} JOIN {{.Table}}
   {{end}}
 {{end}}
-  `
+`
 		defaultOn = `
 {{if .Conds}}
   ON {{.Conds}}
 {{end}}
-  `
+`
 		defaultOrKeyword = `OR`
 		defaultOrderBy   = `
-{{if .SortColumns}}
-  ORDER BY {{.SortColumns}}
+{{if .Columns}}
+  ORDER BY {{.Columns}}
 {{end}}
-  `
+`
 		defaultSelect = `
 SELECT
   {{if .Distinct}}
@@ -232,7 +232,7 @@ SELECT
   {{if .Offset}}
 	OFFSET {{.Offset}}
   {{end}}
-  `
+`
 		defaultSortByColumn = `{{.Column}} {{.Order}}`
 		defaultTableAlias   = `{{.Name}}{{if .Alias}} AS {{.Alias}}{{end}}`
 		defaultTruncate     = `TRUNCATE TABLE {{.Table | compile}}`
@@ -241,19 +241,19 @@ UPDATE
   {{.Table | compile}}
 SET {{.ColumnValues | compile}}
   {{.Where | compile}}
-  `
+`
 		defaultUsing = `
 {{if .Columns}}
   USING ({{.Columns}})
 {{end}}
-  `
+`
 		defaultValueQuote     = `'{{.}}'`
 		defaultValueSeparator = `, `
 		defaultWhere          = `
 {{if .Conds}}
   WHERE {{.Conds}}
 {{end}}
-  `
+`
 	)
 
 	tmpl, err := NewTemplate(
