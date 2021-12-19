@@ -132,3 +132,24 @@ func stripWhitespace(s string) string {
 	s = InvisibleCharsRegexp.ReplaceAllString(s, ` `)
 	return strings.TrimSpace(s)
 }
+
+func TestUtilSeparateByComma(t *testing.T) {
+	chunks := separateByComma("Hello,,World!,Enjoy")
+
+	if len(chunks) != 4 {
+		t.Fatal()
+	}
+
+	if chunks[0] != "Hello" {
+		t.Fatal()
+	}
+	if chunks[1] != "" {
+		t.Fatal()
+	}
+	if chunks[2] != "World!" {
+		t.Fatal()
+	}
+	if chunks[3] != "Enjoy" {
+		t.Fatal()
+	}
+}

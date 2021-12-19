@@ -83,3 +83,40 @@ func separateBySpace(s string) []string {
 }
 
 var InvisibleCharsRegexp = regexp.MustCompile(`[\s\r\n\t]+`)
+
+/*
+// Separates by a comma, ignoring spaces too.
+// This was slower than strings.Split.
+func separateByComma(in string) (out []string) {
+
+	out = []string{}
+
+	start, lim := 0, len(in)-1
+
+	for start < lim {
+		var end int
+
+		for end = start; end <= lim; end++ {
+			// Is a comma?
+			if in[end] == ',' {
+				break
+			}
+		}
+
+		out = append(out, trimString(in[start:end]))
+
+		start = end + 1
+	}
+
+	return
+}
+*/
+
+// Separates by a comma, ignoring spaces too.
+func separateByComma(in string) []string {
+	out := strings.Split(in, ",")
+	for i := range out {
+		out[i] = trimString(out[i])
+	}
+	return out
+}

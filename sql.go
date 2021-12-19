@@ -5,6 +5,11 @@
 
 package norm
 
+import (
+	"context"
+	"database/sql"
+)
+
 // SQL represents a database-agnostic SQL query builder with chainable methods.
 //
 // Queries are immutable, so every call to any method will return a new pointer
@@ -44,10 +49,35 @@ type SQL interface {
 	//
 	//   q := db.Update("users").Set(...).Where(...)
 	Update(table string) Updater
-	// DeleteFrom create a Deleter targeted at the given table.
+	// DeleteFrom creates a Deleter targeted at the given table.
 	//
 	// Example:
 	//
 	//   q := db.DeleteFrom("users").Where(...)
 	DeleteFrom(table string) Deleter
+	// AlterTable() Alter
+	// Create() Creator
+	// Drop() Dropper
+}
+
+// SQLExecer provides methods for executing statements that do not return
+// results.
+type SQLExecer interface {
+	// Exec executes a statement and returns sql.Result.
+	Exec(context.Context) (sql.Result, error)
+}
+
+// SQLPreparer provides the Prepare and Prepare methods for creating
+// prepared statements.
+type SQLPreparer interface {
+	// Prepare creates a prepared statement.
+	Prepare(context.Context) (*sql.Stmt, error)
+}
+
+// SQLGetter provides methods for executing statements that return results.
+type SQLGetter interface {
+	// Query returns *sql.Rows.
+	Query(context.Context) (*sql.Rows, error)
+	// QueryRow returns only one row.
+	QueryRow(ctx context.Context) (*sql.Row, error)
 }
