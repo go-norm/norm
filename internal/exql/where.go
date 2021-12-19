@@ -46,12 +46,12 @@ func groupConditions(t *Template, conds []Fragment, groupKeyword string) (compil
 }
 
 func (w *WhereFragment) Compile(t *Template) (string, error) {
-	if v, ok := t.Get(w); ok {
-		return v, nil
-	}
-
 	if len(w.Conditions) == 0 {
 		return "", nil
+	}
+
+	if v, ok := t.Get(w); ok {
+		return v, nil
 	}
 
 	groupKeyword, err := t.Compile(LayoutClauseOperator, t.layouts[LayoutAndKeyword])
@@ -101,12 +101,12 @@ func (and *AndFragment) Hash() string {
 }
 
 func (and *AndFragment) Compile(t *Template) (string, error) {
-	if v, ok := t.Get(and); ok {
-		return v, nil
-	}
-
 	if len(and.Conditions) == 0 {
 		return "", nil
+	}
+
+	if v, ok := t.Get(and); ok {
+		return v, nil
 	}
 
 	groupKeyword, err := t.Compile(LayoutClauseOperator, t.layouts[LayoutAndKeyword])
@@ -141,12 +141,12 @@ func (or *OrFragment) Hash() string {
 }
 
 func (or *OrFragment) Compile(t *Template) (string, error) {
-	if v, ok := t.Get(or); ok {
-		return v, nil
-	}
-
 	if len(or.Conditions) == 0 {
 		return "", nil
+	}
+
+	if v, ok := t.Get(or); ok {
+		return v, nil
 	}
 
 	groupKeyword, err := t.Compile(LayoutClauseOperator, t.layouts[LayoutOrKeyword])

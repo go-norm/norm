@@ -125,12 +125,12 @@ func (cs *ColumnsFragment) Hash() string {
 }
 
 func (cs *ColumnsFragment) Compile(t *Template) (compiled string, err error) {
-	if v, ok := t.Get(cs); ok {
-		return v, nil
-	}
-
 	if cs.Empty() {
 		return "", nil
+	}
+
+	if v, ok := t.Get(cs); ok {
+		return v, nil
 	}
 
 	out := make([]string, len(cs.Columns))

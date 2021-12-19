@@ -96,12 +96,12 @@ func (cvs *ColumnValuesFragment) Hash() string {
 }
 
 func (cvs *ColumnValuesFragment) Compile(t *Template) (compiled string, err error) {
-	if v, ok := t.Get(cvs); ok {
-		return v, nil
-	}
-
 	if len(cvs.ColumnValues) == 0 {
 		return "", nil
+	}
+
+	if v, ok := t.Get(cvs); ok {
+		return v, nil
 	}
 
 	out := make([]string, len(cvs.ColumnValues))
