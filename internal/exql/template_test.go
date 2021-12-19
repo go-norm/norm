@@ -171,9 +171,7 @@ INSERT INTO {{.Table | compile}}
   {{if .Columns }}({{.Columns | compile}}){{end}}
 VALUES
   {{.Values | compile}}
-{{if .Returning}}
-  RETURNING {{.Returning | compile}}
-{{end}}
+{{.Returning | compile}}
 `
 		defaultJoin = `
 {{if .Table}}
@@ -199,6 +197,11 @@ VALUES
 		defaultOrderBy   = `
 {{if .Columns}}
   ORDER BY {{.Columns}}
+{{end}}
+`
+		defaultReturning = `
+{{if .Columns}}
+  RETURNING {{.Columns | compile}}
 {{end}}
 `
 		defaultSelect = `
@@ -279,6 +282,7 @@ SET {{.ColumnValues | compile}}
 			LayoutOn:                  defaultOn,
 			LayoutOrKeyword:           defaultOrKeyword,
 			LayoutOrderBy:             defaultOrderBy,
+			LayoutReturning:           defaultReturning,
 			LayoutSelect:              defaultSelect,
 			LayoutSortByColumn:        defaultSortByColumn,
 			LayoutTableAlias:          defaultTableAlias,

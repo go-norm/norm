@@ -43,6 +43,7 @@ const (
 	LayoutOn
 	LayoutOrKeyword
 	LayoutOrderBy
+	LayoutReturning
 	LayoutSelect
 	LayoutSortByColumn
 	LayoutTableAlias
