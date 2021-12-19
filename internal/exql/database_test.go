@@ -6,61 +6,26 @@
 package exql
 
 import (
-	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestDatabaseHash(t *testing.T) {
-	var s, e string
+func TestDatabase(t *testing.T) {
+	tmpl := defaultTemplate(t)
+	d := Database("norm")
 
-	column := Database{Name: "users"}
+	got, err := d.Compile(tmpl)
+	require.NoError(t, err)
 
-	s = column.Hash()
-	e = `*exql.Database:11534637656022178905`
+	want := `"norm"`
+	assert.Equal(t, want, strings.TrimSpace(got))
 
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
-}
-
-func TestDatabaseCompile(t *testing.T) {
-	column := Database{Name: "name"}
-
-	s, err := column.Compile(defaultTemplate)
-	if err != nil {
-		t.Fatal()
-	}
-
-	e := `"name"`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
-}
-
-func BenchmarkDatabaseHash(b *testing.B) {
-	c := Database{Name: "name"}
-	for i := 0; i < b.N; i++ {
-		c.Hash()
-	}
-}
-
-func BenchmarkDatabaseCompile(b *testing.B) {
-	c := Database{Name: "name"}
-	for i := 0; i < b.N; i++ {
-		_, _ = c.Compile(defaultTemplate)
-	}
-}
-
-func BenchmarkDatabaseCompileNoCache(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		c := Database{Name: "name"}
-		_, _ = c.Compile(defaultTemplate)
-	}
-}
-
-func BenchmarkDatabaseCompileNoCache2(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		c := Database{Name: fmt.Sprintf("name: %v", i)}
-		_, _ = c.Compile(defaultTemplate)
-	}
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := Database("norm").Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
 }

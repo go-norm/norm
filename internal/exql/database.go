@@ -5,31 +5,43 @@
 
 package exql
 
-// Database represents a SQL database.
-type Database struct {
-	Name string
+import (
+	"github.com/pkg/errors"
+)
+
+var _ Fragment = (*GroupByFragment)(nil)
+
+// DatabaseFragment is a database in the SQL statement.
+//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
+type DatabaseFragment struct {
 	hash hash
+	Name string
 }
 
-var _ = Fragment(&Database{})
-
-// DatabaseWithName returns a Database with the given name.
-func DatabaseWithName(name string) *Database {
-	return &Database{Name: name}
+// Database constructs a DatabaseFragment with the given name.
+func Database(name string) *DatabaseFragment {
+	return &DatabaseFragment{
+		Name: name,
+	}
 }
 
-// Hash returns a unique identifier for the struct.
-func (d *Database) Hash() string {
+func (d *DatabaseFragment) Hash() string {
 	return d.hash.Hash(d)
 }
 
-// Compile transforms the Database into an equivalent SQL representation.
-func (d *Database) Compile(layout *Template) (string, error) {
-	if c, ok := layout.Get(d); ok {
-		return c, nil
+func (d *DatabaseFragment) Compile(t *Template) (string, error) {
+	if v, ok := t.Get(d); ok {
+		return v, nil
 	}
 
-	compiled := layout.Compile(layout.IdentifierQuote, RawFragment{Value: d.Name})
-	layout.Set(d, compiled)
+	compiled, err := t.Compile(LayoutIdentifierQuote, Raw(d.Name))
+	if err != nil {
+		return "", errors.Wrapf(err, "compile LayoutIdentifierQuote with name %q", d.Name)
+	}
+
+	t.Set(d, compiled)
 	return compiled, nil
 }
