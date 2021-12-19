@@ -5,10 +5,18 @@
 
 package exql
 
+import (
+	"testing"
+)
+
+func TestJoin(t *testing.T) {
+
+}
+
 // func TestOnAndRawOrAnd(t *testing.T) {
 // 	var s, e string
 //
-// 	on := OnConditions(
+// 	on := On(
 // 		And(
 // 			&ColumnValueFragment{Column: &ColumnFragment{Name: "id"}, Operator: ">", Value: NewValue(&RawFragment{Value: "8"})},
 // 			&ColumnValueFragment{Column: &ColumnFragment{Name: "id"}, Operator: "<", Value: NewValue(&RawFragment{Value: "99"})},
@@ -36,7 +44,7 @@ package exql
 // func TestUsing(t *testing.T) {
 // 	var s, e string
 //
-// 	using := UsingColumns(
+// 	using := Using(
 // 		&ColumnFragment{Name: "country"},
 // 		&ColumnFragment{Name: "state"},
 // 	)
@@ -55,7 +63,7 @@ package exql
 // 	join := JoinConditions(
 // 		&JoinFragment{
 // 			Table: Table("countries c"),
-// 			On: OnConditions(
+// 			On: On(
 // 				&ColumnValueFragment{
 // 					Column:   &ColumnFragment{Name: "p.country_id"},
 // 					Operator: "=",
@@ -84,7 +92,7 @@ package exql
 // 	join := JoinConditions(&JoinFragment{
 // 		Type:  "INNER",
 // 		Table: Table("countries c"),
-// 		On: OnConditions(
+// 		On: On(
 // 			&ColumnValueFragment{
 // 				Column:   &ColumnFragment{Name: "p.country_id"},
 // 				Operator: "=",
@@ -112,7 +120,7 @@ package exql
 // 	join := JoinConditions(&JoinFragment{
 // 		Type:  "LEFT",
 // 		Table: Table("countries"),
-// 		Using: UsingColumns(ColumnWithName("name")),
+// 		Using: Using(ColumnWithName("name")),
 // 	})
 //
 // 	s = mustTrim(join.Compile(defaultTemplate))
