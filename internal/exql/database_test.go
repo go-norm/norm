@@ -1,0 +1,66 @@
+// Copyright 2012 The upper.io/db authors. All rights reserved.
+// Copyright 2021 Joe Chen. All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+package exql
+
+import (
+	"fmt"
+	"testing"
+)
+
+func TestDatabaseHash(t *testing.T) {
+	var s, e string
+
+	column := Database{Name: "users"}
+
+	s = column.Hash()
+	e = `*exql.Database:11534637656022178905`
+
+	if s != e {
+		t.Fatalf("Got: %s, Expecting: %s", s, e)
+	}
+}
+
+func TestDatabaseCompile(t *testing.T) {
+	column := Database{Name: "name"}
+
+	s, err := column.Compile(defaultTemplate)
+	if err != nil {
+		t.Fatal()
+	}
+
+	e := `"name"`
+	if s != e {
+		t.Fatalf("Got: %s, Expecting: %s", s, e)
+	}
+}
+
+func BenchmarkDatabaseHash(b *testing.B) {
+	c := Database{Name: "name"}
+	for i := 0; i < b.N; i++ {
+		c.Hash()
+	}
+}
+
+func BenchmarkDatabaseCompile(b *testing.B) {
+	c := Database{Name: "name"}
+	for i := 0; i < b.N; i++ {
+		_, _ = c.Compile(defaultTemplate)
+	}
+}
+
+func BenchmarkDatabaseCompileNoCache(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		c := Database{Name: "name"}
+		_, _ = c.Compile(defaultTemplate)
+	}
+}
+
+func BenchmarkDatabaseCompileNoCache2(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		c := Database{Name: fmt.Sprintf("name: %v", i)}
+		_, _ = c.Compile(defaultTemplate)
+	}
+}
