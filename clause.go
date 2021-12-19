@@ -11,9 +11,7 @@ import (
 
 // Selector represents a SQL query builder for the SELECT statement.
 type Selector interface {
-	// Columns defines which columns to retrieve. Subsequent calls to Columns()
-	// append more columns to the retrieval list (i.e. do not replace previously set
-	// columns).
+	// Columns defines which columns to retrieve.
 	//
 	// The From() should be called along with Columns() to query data from a
 	// specific table:
@@ -35,6 +33,9 @@ type Selector interface {
 	// The above statement is equivalent to:
 	//
 	//   q.Columns(expr.Func("MAX", "id"))
+	//
+	// Subsequent calls to Columns() append more columns to the retrieval list (i.e.
+	// do not replace previously set columns).
 	Columns(columns ...interface{}) Selector
 	// From constructs a FROM clause for where the data to be retrieved from.
 	//
@@ -94,7 +95,8 @@ type Selector interface {
 	//
 	//   q.GroupBy("country_id")
 	//   q.GroupBy("country_id", "city_id")
-
+	//
+	// Subsequent calls to GroupBy() replace the previously set clause.
 	GroupBy(columns ...interface{}) Selector
 	// OrderBy constructs a ORDER BY clause.
 	//
@@ -113,6 +115,8 @@ type Selector interface {
 	//
 	//   => ORDER BY "last_name" DESC
 	//   q.OrderBy("-last_name")
+	//
+	// Subsequent calls to OrderBy() replace the previously set clause.
 	OrderBy(columns ...interface{}) Selector
 	// Join constructs a JOIN clause.
 	//
@@ -163,7 +167,7 @@ type Selector interface {
 	//   q.Limit(42)
 	//
 	// A negative limit cancels any previously set limit.
-	Limit(int) Selector
+	Limit(n int) Selector
 	// Offset constructs a OFFSET clause.
 	//
 	// It is used to define how many results are going to be skipped before starting to
@@ -172,7 +176,7 @@ type Selector interface {
 	//   q.Offset(56)
 	//
 	// A negative offset cancels any previously set offset.
-	Offset(int) Selector
+	Offset(n int) Selector
 
 	// Iterate creates an Iterator to iterate over query results.
 	Iterate(ctx context.Context) Iterator
