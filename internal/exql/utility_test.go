@@ -130,5 +130,7 @@ func TestSeparateBySpace(t *testing.T) {
 
 func stripWhitespace(s string) string {
 	s = InvisibleCharsRegexp.ReplaceAllString(s, ` `)
-	return strings.TrimSpace(s)
+	s = strings.TrimSpace(s)
+	s = strings.NewReplacer("( ", "(", " )", ")").Replace(s)
+	return s
 }

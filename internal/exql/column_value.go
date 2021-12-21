@@ -28,10 +28,11 @@ type ColumnValueFragment struct {
 }
 
 // ColumnValue constructs a ColumnValueFragment with the given column, value,
-// and their comparison operator.
-func ColumnValue(column *ColumnFragment, operator expr.ComparisonOperator, value Fragment) *ColumnValueFragment {
+// and their comparison operator, where the column name can be a string or
+// RawFragment.
+func ColumnValue(column interface{}, operator expr.ComparisonOperator, value Fragment) *ColumnValueFragment {
 	return &ColumnValueFragment{
-		Column:   column,
+		Column:   Column(column),
 		Operator: operator,
 		Value:    value,
 	}

@@ -36,6 +36,8 @@ const (
 	LogicalOr
 )
 
+var _ fmt.Stringer = (*LogicalOperator)(nil)
+
 func (op LogicalOperator) String() string {
 	switch op {
 	case LogicalAnd:

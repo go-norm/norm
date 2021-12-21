@@ -23,12 +23,12 @@ func TestColumnValue(t *testing.T) {
 	}{
 		{
 			name:        "compare value",
-			columnValue: ColumnValue(Column("id"), expr.ComparisonEqual, Raw("1")),
+			columnValue: ColumnValue("id", expr.ComparisonEqual, Raw("1")),
 			want:        `"id" = 1`,
 		},
 		{
 			name:        "compare func",
-			columnValue: ColumnValue(Column("date"), expr.ComparisonGreaterThan, Raw("NOW()")),
+			columnValue: ColumnValue("date", expr.ComparisonGreaterThan, Raw("NOW()")),
 			want:        `"date" > NOW()`,
 		},
 	}
@@ -41,7 +41,7 @@ func TestColumnValue(t *testing.T) {
 	}
 
 	t.Run("cache hit", func(t *testing.T) {
-		got, err := ColumnValue(Column("id"), expr.ComparisonEqual, Raw("1")).Compile(tmpl)
+		got, err := ColumnValue("id", expr.ComparisonEqual, Raw("1")).Compile(tmpl)
 		assert.NoError(t, err)
 		assert.Equal(t, `"id" = 1`, got)
 	})
@@ -49,11 +49,11 @@ func TestColumnValue(t *testing.T) {
 
 func TestColumnValues(t *testing.T) {
 	cvs := ColumnValues(
-		ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
-		ColumnValue(Column("other.id"), expr.ComparisonLessThan, Raw("100")),
-		ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'Haruki Murakami'`)),
-		ColumnValue(Column("created"), expr.ComparisonGreaterThanOrEqualTo, Raw("NOW()")),
-		ColumnValue(Column("modified"), expr.ComparisonLessThanOrEqualTo, Raw("NOW()")),
+		ColumnValue("id", expr.ComparisonGreaterThan, Raw("8")),
+		ColumnValue("other.id", expr.ComparisonLessThan, Raw("100")),
+		ColumnValue("name", expr.ComparisonEqual, Raw(`'Haruki Murakami'`)),
+		ColumnValue("created", expr.ComparisonGreaterThanOrEqualTo, Raw("NOW()")),
+		ColumnValue("modified", expr.ComparisonLessThanOrEqualTo, Raw("NOW()")),
 	)
 	tmpl := defaultTemplate(t)
 
@@ -79,7 +79,7 @@ func TestColumnValues_Append(t *testing.T) {
 	assert.Empty(t, got)
 
 	cvs.Append(
-		ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
+		ColumnValue("id", expr.ComparisonGreaterThan, Raw("8")),
 	)
 	got, err = cvs.Compile(tmpl)
 	require.NoError(t, err)

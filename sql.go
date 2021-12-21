@@ -44,7 +44,7 @@ type SQL interface {
 	//
 	//   q := db.Update("users").Set(...).Where(...)
 	Update(table string) Updater
-	// DeleteFrom create a Deleter targeted at the given table.
+	// DeleteFrom creates a Deleter targeted at the given table.
 	//
 	// Example:
 	//

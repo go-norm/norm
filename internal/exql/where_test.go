@@ -17,11 +17,11 @@ import (
 
 func TestWhere(t *testing.T) {
 	w := Where(
-		ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
-		ColumnValue(Column("other.id"), expr.ComparisonLessThan, Raw("100")),
-		ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'Haruki Murakami'`)),
-		ColumnValue(Column("created"), expr.ComparisonGreaterThanOrEqualTo, Raw("NOW()")),
-		ColumnValue(Column("modified"), expr.ComparisonLessThanOrEqualTo, Raw("NOW()")),
+		ColumnValue("id", expr.ComparisonGreaterThan, Raw("8")),
+		ColumnValue("other.id", expr.ComparisonLessThan, Raw("100")),
+		ColumnValue("name", expr.ComparisonEqual, Raw(`'Haruki Murakami'`)),
+		ColumnValue("created", expr.ComparisonGreaterThanOrEqualTo, Raw("NOW()")),
+		ColumnValue("modified", expr.ComparisonLessThanOrEqualTo, Raw("NOW()")),
 	)
 	tmpl := defaultTemplate(t)
 
@@ -47,7 +47,7 @@ func TestWhere_Append(t *testing.T) {
 	assert.Empty(t, got)
 
 	w.Append(
-		ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
+		ColumnValue("id", expr.ComparisonGreaterThan, Raw("8")),
 	)
 	got, err = w.Compile(tmpl)
 	require.NoError(t, err)
@@ -66,11 +66,11 @@ func TestAnd(t *testing.T) {
 	})
 
 	and := And(
-		ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
-		ColumnValue(Column("other.id"), expr.ComparisonLessThan, Raw("100")),
-		ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'Haruki Murakami'`)),
-		ColumnValue(Column("created"), expr.ComparisonGreaterThanOrEqualTo, Raw("NOW()")),
-		ColumnValue(Column("modified"), expr.ComparisonLessThanOrEqualTo, Raw("NOW()")),
+		ColumnValue("id", expr.ComparisonGreaterThan, Raw("8")),
+		ColumnValue("other.id", expr.ComparisonLessThan, Raw("100")),
+		ColumnValue("name", expr.ComparisonEqual, Raw(`'Haruki Murakami'`)),
+		ColumnValue("created", expr.ComparisonGreaterThanOrEqualTo, Raw("NOW()")),
+		ColumnValue("modified", expr.ComparisonLessThanOrEqualTo, Raw("NOW()")),
 	)
 
 	got, err := and.Compile(tmpl)
@@ -96,11 +96,11 @@ func TestOr(t *testing.T) {
 	})
 
 	and := Or(
-		ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
-		ColumnValue(Column("other.id"), expr.ComparisonLessThan, Raw("100")),
-		ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'Haruki Murakami'`)),
-		ColumnValue(Column("created"), expr.ComparisonGreaterThanOrEqualTo, Raw("NOW()")),
-		ColumnValue(Column("modified"), expr.ComparisonLessThanOrEqualTo, Raw("NOW()")),
+		ColumnValue("id", expr.ComparisonGreaterThan, Raw("8")),
+		ColumnValue("other.id", expr.ComparisonLessThan, Raw("100")),
+		ColumnValue("name", expr.ComparisonEqual, Raw(`'Haruki Murakami'`)),
+		ColumnValue("created", expr.ComparisonGreaterThanOrEqualTo, Raw("NOW()")),
+		ColumnValue("modified", expr.ComparisonLessThanOrEqualTo, Raw("NOW()")),
 	)
 
 	got, err := and.Compile(tmpl)
@@ -119,17 +119,17 @@ func TestOr(t *testing.T) {
 func TestWhere_And_Or(t *testing.T) {
 	w := Where(
 		And(
-			ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
-			ColumnValue(Column("id"), expr.ComparisonLessThan, Raw("99")),
+			ColumnValue("id", expr.ComparisonGreaterThan, Raw("8")),
+			ColumnValue("id", expr.ComparisonLessThan, Raw("99")),
 			Or(
-				ColumnValue(Column("age"), expr.ComparisonLessThan, Raw("18")),
-				ColumnValue(Column("age"), expr.ComparisonGreaterThan, Raw("41")),
+				ColumnValue("age", expr.ComparisonLessThan, Raw("18")),
+				ColumnValue("age", expr.ComparisonGreaterThan, Raw("41")),
 			),
 		),
-		ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'John'`)),
+		ColumnValue("name", expr.ComparisonEqual, Raw(`'John'`)),
 		Or(
-			ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Smith'`)),
-			ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Reyes'`)),
+			ColumnValue("last_name", expr.ComparisonEqual, Raw(`'Smith'`)),
+			ColumnValue("last_name", expr.ComparisonEqual, Raw(`'Reyes'`)),
 		),
 	).Append(
 		Raw("city_id = 728"),
