@@ -385,6 +385,49 @@ JOIN "user_emails" ON ("users"."id" = "user_emails"."id")
 JOIN "user_invites" ON ("users"."id" = "user_invites"."id")
 `),
 		},
+		{
+			name: "raw",
+			statement: &Statement{
+				Type:  StatementSelect,
+				Table: Table("users"),
+				Columns: Columns(
+					Column("users.name"),
+					Column(Raw(`CONCAT(users.name, " ", users.last_name)`)),
+				),
+			},
+			want: `SELECT "users"."name", CONCAT(users.name, " ", users.last_name) FROM "users"`,
+		},
+		{
+			name: "limit",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("users.name"),
+				Limit:   10,
+			},
+			want: `SELECT "users"."name" FROM "users" LIMIT 10`,
+		},
+		{
+			name: "offset",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("users.name"),
+				Offset:  10,
+			},
+			want: `SELECT "users"."name" FROM "users" OFFSET 10`,
+		},
+		{
+			name: "limit and offset",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("users.name"),
+				Limit:   10,
+				Offset:  10,
+			},
+			want: `SELECT "users"."name" FROM "users" LIMIT 10 OFFSET 10`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -395,88 +438,6 @@ JOIN "user_invites" ON ("users"."id" = "user_invites"."id")
 	}
 }
 
-// func TestSelectRawFrom(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table(`artist`),
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: `artist.name`},
-// 			&ColumnFragment{Name: RawFragment{Value: `CONCAT(artist.name, " ", artist.last_name)`}},
-// 		),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "artist"."name", CONCAT(artist.name, " ", artist.last_name) FROM "artist"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectFieldsFromWithLimitOffset(t *testing.T) {
-// 	var s, e string
-// 	var stmt Statement
-//
-// 	// LIMIT only.
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		Limit: 42,
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" LIMIT 42`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-//
-// 	// OFFSET only.
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		Offset: 17,
-// 		Table:  Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" OFFSET 17`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-//
-// 	// LIMIT AND OFFSET.
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		Limit:  42,
-// 		Offset: 17,
-// 		Table:  Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" LIMIT 42 OFFSET 17`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
 //
 // func TestStatementGroupBy(t *testing.T) {
 // 	var s, e string
