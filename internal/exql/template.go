@@ -20,7 +20,7 @@ import (
 type TemplateLayout uint8
 
 const (
-	_ = TemplateLayout(iota)
+	LayoutNone = TemplateLayout(iota)
 
 	LayoutAndKeyword
 	LayoutAscKeyword
