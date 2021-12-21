@@ -428,6 +428,54 @@ JOIN "user_invites" ON ("users"."id" = "user_invites"."id")
 			},
 			want: `SELECT "users"."name" FROM "users" LIMIT 10 OFFSET 10`,
 		},
+		{
+			name: "group by",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("*"),
+				GroupBy: GroupBy(Column("users.country")),
+			},
+			want: `SELECT * FROM "users" GROUP BY "users"."country"`,
+		},
+		{
+			name: "multiple group bys",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("*"),
+				GroupBy: GroupBy(
+					Column("users.country"),
+					Column("users.gender"),
+				),
+			},
+			want: `SELECT * FROM "users" GROUP BY "users"."country", "users"."gender"`,
+		},
+		{
+			name: "order by",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("*"),
+				OrderBy: OrderBy(
+					SortColumn("users.country"),
+				),
+			},
+			want: `SELECT * FROM "users" ORDER BY "users"."country"`,
+		},
+		{
+			name: "multiple order bys",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("*"),
+				OrderBy: OrderBy(
+					SortColumn("users.country"),
+					SortColumn("users.gender", SortDescendent),
+				),
+			},
+			want: `SELECT * FROM "users" ORDER BY "users"."country", "users"."gender" DESC`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -438,258 +486,28 @@ JOIN "user_invites" ON ("users"."id" = "user_invites"."id")
 	}
 }
 
-//
-// func TestStatementGroupBy(t *testing.T) {
-// 	var s, e string
-// 	var stmt Statement
-//
-// 	// Simple GROUP BY
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		GroupBy: GroupBy(
-// 			&ColumnFragment{Name: "foo"},
-// 		),
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" GROUP BY "foo"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-//
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		GroupBy: GroupBy(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 		),
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" GROUP BY "foo", "bar"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectFieldsFromWithOrderBy(t *testing.T) {
-// 	var s, e string
-// 	var stmt Statement
-//
-// 	// Simple ORDER BY
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		OrderBy: OrderBy(
-// 			JoinSortColumns(
-// 				&SortColumnFragment{Column: &ColumnFragment{Name: "foo"}},
-// 			),
-// 		),
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" ORDER BY "foo"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-//
-// 	// ORDER BY field ASC
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		OrderBy: OrderBy(
-// 			JoinSortColumns(
-// 				&SortColumnFragment{Column: &ColumnFragment{Name: "foo"}, SortOrder: SortAscendant},
-// 			),
-// 		),
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" ORDER BY "foo" ASC`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-//
-// 	// ORDER BY field DESC
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		OrderBy: OrderBy(
-// 			JoinSortColumns(
-// 				&SortColumnFragment{Column: &ColumnFragment{Name: "foo"}, SortOrder: SortDescendent},
-// 			),
-// 		),
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" ORDER BY "foo" DESC`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-//
-// 	// ORDER BY many fields
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		OrderBy: OrderBy(
-// 			JoinSortColumns(
-// 				&SortColumnFragment{Column: &ColumnFragment{Name: "foo"}, SortOrder: SortDescendent},
-// 				&SortColumnFragment{Column: &ColumnFragment{Name: "bar"}, SortOrder: SortAscendant},
-// 				&SortColumnFragment{Column: &ColumnFragment{Name: "baz"}, SortOrder: SortDescendent},
-// 			),
-// 		),
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" ORDER BY "foo" DESC, "bar" ASC, "baz" DESC`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-//
-// 	// ORDER BY function
-// 	stmt = Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		OrderBy: OrderBy(
-// 			JoinSortColumns(
-// 				&SortColumnFragment{Column: &ColumnFragment{Name: RawFragment{Value: "FOO()"}}, SortOrder: SortDescendent},
-// 				&SortColumnFragment{Column: &ColumnFragment{Name: RawFragment{Value: "BAR()"}}, SortOrder: SortAscendant},
-// 			),
-// 		),
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" ORDER BY FOO() DESC, BAR() ASC`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectFieldsFromWhere(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		Table: Table("table_name"),
-// 		Where: WhereConditions(
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "baz"}, Operator: "=", Value: NewValue(99)},
-// 		),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" WHERE ("baz" = '99')`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectFieldsFromWhereLimitOffset(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo"},
-// 			&ColumnFragment{Name: "bar"},
-// 			&ColumnFragment{Name: "baz"},
-// 		),
-// 		Table: Table("table_name"),
-// 		Where: WhereConditions(
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "baz"}, Operator: "=", Value: NewValue(99)},
-// 		),
-// 		Limit:  10,
-// 		Offset: 23,
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo", "bar", "baz" FROM "table_name" WHERE ("baz" = '99') LIMIT 10 OFFSET 23`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-//
-// func TestUpdate(t *testing.T) {
-//
-// 	stmt = Statement{
-// 		Type:  StatementUpdate,
-// 		Table: Table("table_name"),
-// 		ColumnValues: JoinColumnValues(
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "foo"}, Operator: "=", Value: NewValue(76)},
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "bar"}, Operator: "=", Value: NewValue(RawFragment{Value: "88"})},
-// 		),
-// 		Where: WhereConditions(
-// 			&ColumnValueFragment{Column: &ColumnFragment{Name: "baz"}, Operator: "=", Value: NewValue(99)},
-// 		),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `UPDATE "table_name" SET "foo" = '76', "bar" = 88 WHERE ("baz" = '99')`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
+func TestStatement_Amend(t *testing.T) {
+	s := &Statement{
+		Type:    StatementSelect,
+		Table:   Table("users"),
+		Columns: Column("name"),
+	}
+	s.SetAmend(func(s string) string {
+		return s + " FOR UPDATE"
+	})
 
-//
-// func TestRawSQLStatement(t *testing.T) {
-// 	stmt := RawSQL(`SELECT * FROM "foo" ORDER BY "bar"`)
-//
-// 	s := mustTrim(stmt.Compile(defaultTemplate))
-// 	e := `SELECT * FROM "foo" ORDER BY "bar"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
+	got, err := s.Compile(defaultTemplate(t))
+	require.NoError(t, err)
+
+	want := `SELECT "name" FROM "users" FOR UPDATE`
+	assert.Equal(t, want, stripWhitespace(got))
+}
+
+func TestRawSQL(t *testing.T) {
+	const sql = `SELECT * FROM "foo" ORDER BY "bar"`
+	s := RawSQL(sql)
+
+	got, err := s.Compile(defaultTemplate(t))
+	require.NoError(t, err)
+	assert.Equal(t, sql, stripWhitespace(got))
+}
