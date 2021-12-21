@@ -158,7 +158,12 @@ func TestStatement_Insert(t *testing.T) {
 				),
 				Values: ValuesGroup(Value("alice"), Value("alice@example.com"), Raw("NOW()")),
 			},
-			want: `INSERT INTO "users" ("name", "email", "created_at") VALUES ('alice', 'alice@example.com', NOW())`,
+			want: stripWhitespace(`
+INSERT INTO "users"
+	("name", "email", "created_at")
+VALUES
+	('alice', 'alice@example.com', NOW())
+`),
 		},
 		{
 			name: "multiple",
@@ -175,7 +180,13 @@ func TestStatement_Insert(t *testing.T) {
 					ValuesGroup(Value("bob"), Value("bob@example.com"), Raw("NOW()")),
 				),
 			},
-			want: `INSERT INTO "users" ("name", "email", "created_at") VALUES ('alice', 'alice@example.com', NOW()), ('bob', 'bob@example.com', NOW())`,
+			want: stripWhitespace(`
+INSERT INTO "users"
+	("name", "email", "created_at")
+VALUES
+	('alice', 'alice@example.com', NOW()),
+	('bob', 'bob@example.com', NOW())
+`),
 		},
 		{
 			name: "returning",
@@ -190,7 +201,13 @@ func TestStatement_Insert(t *testing.T) {
 				Values:    ValuesGroup(Value("alice"), Value("alice@example.com"), Raw("NOW()")),
 				Returning: Returning(Column("id")),
 			},
-			want: `INSERT INTO "users" ("name", "email", "created_at") VALUES ('alice', 'alice@example.com', NOW()) RETURNING "id"`,
+			want: stripWhitespace(`
+INSERT INTO "users"
+	("name", "email", "created_at")
+VALUES
+	('alice', 'alice@example.com', NOW())
+RETURNING "id"
+`),
 		},
 	}
 	for _, test := range tests {
@@ -245,7 +262,16 @@ func TestStatement_Select(t *testing.T) {
 					Raw("deleted_at IS NULL"),
 				),
 			},
-			want: `SELECT "name", "email", "created_at" FROM "users" WHERE ("id" = 1 AND deleted_at IS NULL)`,
+			want: stripWhitespace(`
+SELECT
+	"name",
+	"email",
+	"created_at"
+FROM "users"
+WHERE (
+		"id" = 1
+	AND deleted_at IS NULL
+)`),
 		},
 		{
 			name: "from many",
@@ -263,7 +289,17 @@ func TestStatement_Select(t *testing.T) {
 					Column("sid"),
 				),
 			},
-			want: `SELECT "users".*, "c"."id", "sid" FROM "users", "customers" AS "c", "sellers"."id" AS "sid", "sellers"."name" AS "sname"`,
+			want: stripWhitespace(`
+SELECT
+	"users".*,
+	"c"."id",
+	"sid"
+FROM
+	"users",
+	"customers" AS "c",
+	"sellers"."id" AS "sid",
+	"sellers"."name" AS "sname"
+`),
 		},
 		{
 			name: "join on",
@@ -277,7 +313,12 @@ func TestStatement_Select(t *testing.T) {
 					On(ColumnValue("users.id", expr.ComparisonEqual, Column("user_emails.id"))),
 				),
 			},
-			want: `SELECT "user_emails"."email" FROM "users" JOIN "user_emails" ON ("users"."id" = "user_emails"."id")`,
+			want: stripWhitespace(`
+SELECT
+	"user_emails"."email"
+FROM "users"
+JOIN "user_emails" ON ("users"."id" = "user_emails"."id")
+`),
 		},
 		{
 			name: "join using",
@@ -291,7 +332,12 @@ func TestStatement_Select(t *testing.T) {
 					Using(Column("user_id")),
 				),
 			},
-			want: `SELECT "user_emails"."email" FROM "users" JOIN "user_emails" USING ("user_id")`,
+			want: stripWhitespace(`
+SELECT
+	"user_emails"."email"
+FROM "users"
+JOIN "user_emails" USING ("user_id")
+`),
 		},
 		{
 			name: "natural join",
@@ -301,7 +347,12 @@ func TestStatement_Select(t *testing.T) {
 				Columns: Column("user_emails.email"),
 				Joins:   Join("user_emails"),
 			},
-			want: `SELECT "user_emails"."email" FROM "users" NATURAL JOIN "user_emails"`,
+			want: stripWhitespace(`
+SELECT
+	"user_emails"."email"
+FROM "users"
+NATURAL JOIN "user_emails"
+`),
 		},
 		{
 			name: "multiple joins",
@@ -325,7 +376,14 @@ func TestStatement_Select(t *testing.T) {
 					),
 				),
 			},
-			want: `SELECT "user_emails"."email", "user_invites"."id" FROM "users" JOIN "user_emails" ON ("users"."id" = "user_emails"."id") JOIN "user_invites" ON ("users"."id" = "user_invites"."id")`,
+			want: stripWhitespace(`
+SELECT
+	"user_emails"."email",
+	"user_invites"."id"
+FROM "users"
+JOIN "user_emails" ON ("users"."id" = "user_emails"."id")
+JOIN "user_invites" ON ("users"."id" = "user_invites"."id")
+`),
 		},
 	}
 	for _, test := range tests {
