@@ -12,6 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mockStringer struct {
+	s string
+}
+
+func (m *mockStringer) String() string {
+	return "String: " + m.s
+}
+
 func TestValue(t *testing.T) {
 	tmpl := defaultTemplate(t)
 	tests := []struct {
@@ -30,9 +38,14 @@ func TestValue(t *testing.T) {
 			want:  `'1'`,
 		},
 		{
+			name:  "stringer",
+			value: Value(&mockStringer{"test"}),
+			want:  `'String: test'`,
+		},
+		{
 			name:  "raw",
 			value: Value(Raw("NOW()")),
-			want:  `NOW()`,
+			want:  `'NOW()'`,
 		},
 	}
 	for _, test := range tests {
@@ -62,13 +75,14 @@ func TestValuesGroup(t *testing.T) {
 	vg := ValuesGroup(
 		Value("John"),
 		Value(1),
-		Value(Raw("NOW()")),
+		Value("NOW()"),
+		Raw("NOW()"),
 	)
 
 	got, err := vg.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := `('John', '1', NOW())`
+	want := `('John', '1', 'NOW()', NOW())`
 	assert.Equal(t, want, got)
 
 	t.Run("cache hit", func(t *testing.T) {
@@ -91,12 +105,12 @@ func TestValuesGroups(t *testing.T) {
 		ValuesGroup(
 			Value("John"),
 			Value(1),
-			Value(Raw("NOW()")),
+			Raw("NOW()"),
 		),
 		ValuesGroup(
 			Value("Joe"),
 			Value(2),
-			Value(Raw("NOW()")),
+			Raw("NOW()"),
 		),
 	)
 

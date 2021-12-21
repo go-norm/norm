@@ -40,18 +40,24 @@ func (v *ValueFragment) Compile(t *Template) (compiled string, err error) {
 		return vv, nil
 	}
 
+	var value string
 	switch vv := v.Value.(type) {
 	case Fragment:
-		compiled, err = vv.Compile(t)
+		value, err = vv.Compile(t)
 		if err != nil {
 			return "", errors.Wrap(err, "compile fragment")
 		}
 
+	case fmt.Stringer:
+		value = vv.String()
+
 	default:
-		compiled, err = t.Compile(LayoutValueQuote, Raw(fmt.Sprintf("%v", v.Value)))
-		if err != nil {
-			return "", errors.Wrapf(err, "compile LayoutValueQuote with value %v", v.Value)
-		}
+		value = fmt.Sprintf("%v", v.Value)
+	}
+
+	compiled, err = t.Compile(LayoutValueQuote, value)
+	if err != nil {
+		return "", errors.Wrapf(err, "compile LayoutValueQuote with value %v", value)
 	}
 
 	t.Set(v, compiled)
@@ -67,11 +73,11 @@ var _ Fragment = (*ValuesGroupFragment)(nil)
 // whether the hash has been computed.
 type ValuesGroupFragment struct {
 	hash   hash
-	Values []*ValueFragment
+	Values []Fragment
 }
 
 // ValuesGroup constructs a ValuesGroupFragment with the given values.
-func ValuesGroup(values ...*ValueFragment) *ValuesGroupFragment {
+func ValuesGroup(values ...Fragment) *ValuesGroupFragment {
 	return &ValuesGroupFragment{
 		Values: values,
 	}

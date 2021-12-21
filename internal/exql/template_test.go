@@ -133,7 +133,7 @@ func defaultTemplate(t testing.TB) *Template {
 		defaultColumnValue        = `{{.Column}} {{.Operator}} {{.Value}}`
 		defaultCount              = `
 SELECT
-  COUNT(1) AS _t
+  COUNT(*)
 FROM {{.Table | compile}}
   {{.Where | compile}}
 

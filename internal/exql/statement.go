@@ -27,13 +27,6 @@ const (
 	StatementSQL
 )
 
-type (
-	// Limit represents the limit in a SQL query.
-	Limit int
-	// Offset represents the offset in a SQL query.
-	Offset int
-)
-
 var _ Fragment = (*Statement)(nil)
 
 // Statement is an AST for constructing SQL statements.
@@ -57,8 +50,8 @@ type Statement struct {
 	Where        *WhereFragment
 	Returning    *ReturningFragment
 
-	Limit  Limit
-	Offset Offset
+	Limit  int
+	Offset int
 
 	SQL string
 
@@ -82,22 +75,22 @@ func (s *Statement) Amend(in string) string {
 
 func (s *Statement) layout() (TemplateLayout, error) {
 	switch s.Type {
-	case StatementTruncate:
-		return LayoutTruncate, nil
-	case StatementDropTable:
-		return LayoutDropTable, nil
-	case StatementDropDatabase:
-		return LayoutDropDatabase, nil
 	case StatementCount:
 		return LayoutCount, nil
+	case StatementDelete:
+		return LayoutDelete, nil
+	case StatementDropDatabase:
+		return LayoutDropDatabase, nil
+	case StatementDropTable:
+		return LayoutDropTable, nil
 	case StatementInsert:
 		return LayoutInsert, nil
 	case StatementSelect:
 		return LayoutSelect, nil
+	case StatementTruncate:
+		return LayoutTruncate, nil
 	case StatementUpdate:
 		return LayoutUpdate, nil
-	case StatementDelete:
-		return LayoutDelete, nil
 	}
 	return LayoutNone, errors.Errorf("unexpected type %v", s.Type)
 }
