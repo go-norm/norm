@@ -16,23 +16,22 @@ func TestLogical_Empty(t *testing.T) {
 }
 
 func TestAnd_Or_Raw(t *testing.T) {
-	expr :=
+	expr := And(
+		Raw("id = 1"),
 		And(
-			Raw("id = 1"),
-			And(
-				Raw("name = 'Joe'"),
-				Or(
-					Raw("year = 2021"),
-					Cond{
-						"year =": "2022",
-					},
-				).Or(
-					Raw("year = 2023"),
-				),
+			Raw("name = 'Joe'"),
+			Or(
+				Raw("year = 2021"),
+				Cond{
+					"year =": "2022",
+				},
+			).Or(
+				Raw("year = 2023"),
 			),
-		).And(
-			Logical(LogicalNone),
-		)
+		),
+	).And(
+		Logical(LogicalNone),
+	)
 
 	assert.Equal(t, LogicalAnd, expr.Operator())
 	assert.False(t, expr.Empty(), "should not be empty")

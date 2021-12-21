@@ -117,24 +117,23 @@ func TestOr(t *testing.T) {
 }
 
 func TestWhere_And_Or(t *testing.T) {
-	w :=
-		Where(
-			And(
-				ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
-				ColumnValue(Column("id"), expr.ComparisonLessThan, Raw("99")),
-				Or(
-					ColumnValue(Column("age"), expr.ComparisonLessThan, Raw("18")),
-					ColumnValue(Column("age"), expr.ComparisonGreaterThan, Raw("41")),
-				),
-			),
-			ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'John'`)),
+	w := Where(
+		And(
+			ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
+			ColumnValue(Column("id"), expr.ComparisonLessThan, Raw("99")),
 			Or(
-				ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Smith'`)),
-				ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Reyes'`)),
+				ColumnValue(Column("age"), expr.ComparisonLessThan, Raw("18")),
+				ColumnValue(Column("age"), expr.ComparisonGreaterThan, Raw("41")),
 			),
-		).Append(
-			Raw("city_id = 728"),
-		)
+		),
+		ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'John'`)),
+		Or(
+			ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Smith'`)),
+			ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Reyes'`)),
+		),
+	).Append(
+		Raw("city_id = 728"),
+	)
 
 	got, err := w.Compile(defaultTemplate(t))
 	require.NoError(t, err)
