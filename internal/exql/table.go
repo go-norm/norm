@@ -97,3 +97,48 @@ func (t *TableFragment) Compile(tmpl *Template) (compiled string, err error) {
 	tmpl.Set(t, compiled)
 	return compiled, nil
 }
+
+var _ Fragment = (*TablesFragment)(nil)
+
+// TablesFragment is a list of TableFragment.
+//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
+type TablesFragment struct {
+	hash   hash
+	Tables []*TableFragment
+}
+
+// Tables constructs a TablesFragment with the given tables.
+func Tables(tables ...*TableFragment) *TablesFragment {
+	return &TablesFragment{
+		Tables: tables,
+	}
+}
+
+func (ts *TablesFragment) Hash() string {
+	return ts.hash.Hash(ts)
+}
+
+func (ts *TablesFragment) Compile(t *Template) (compiled string, err error) {
+	if len(ts.Tables) == 0 {
+		return "", nil
+	}
+
+	if v, ok := t.Get(ts); ok {
+		return v, nil
+	}
+
+	out := make([]string, len(ts.Tables))
+	for i := range ts.Tables {
+		out[i], err = ts.Tables[i].Compile(t)
+		if err != nil {
+			return "", errors.Wrap(err, "compile table")
+		}
+	}
+
+	compiled = strings.TrimSpace(strings.Join(out, t.layouts[LayoutIdentifierSeparator]))
+	t.Set(ts, compiled)
+	return compiled, nil
+}

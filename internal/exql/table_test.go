@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTable(t *testing.T) {
@@ -83,5 +84,34 @@ func TestTable(t *testing.T) {
 		got, err := Table("users").Compile(tmpl)
 		assert.NoError(t, err)
 		assert.Equal(t, `"users"`, got)
+	})
+}
+
+func TestTables(t *testing.T) {
+	tmpl := defaultTemplate(t)
+
+	t.Run("empty", func(t *testing.T) {
+		got, err := Tables().Compile(tmpl)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	ts := Tables(
+		Table("users"),
+		Table("customers"),
+		Table("sellers.name"),
+		Table("sellers.id"),
+	)
+
+	got, err := ts.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `"users", "customers", "sellers"."name", "sellers"."id"`
+	assert.Equal(t, want, got)
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := ts.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, got)
 	})
 }
