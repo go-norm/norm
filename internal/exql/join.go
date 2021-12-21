@@ -37,29 +37,31 @@ type JoinFragment struct {
 	Using *UsingFragment
 }
 
-// Join constructs a JoinFragment with the given table as a NATURAL JOIN.
-func Join(table *TableFragment) *JoinFragment {
+// Join constructs a JoinFragment with the given table as a NATURAL JOIN, where
+// the table name can be a string or RawFragment.
+func Join(table interface{}) *JoinFragment {
 	return &JoinFragment{
 		Type:  DefaultJoin,
-		Table: table,
+		Table: Table(table),
 	}
 }
 
-// JoinOn constructs a JoinFragment with the given type, table and on clause.
-func JoinOn(typ JoinType, table *TableFragment, on *OnFragment) *JoinFragment {
+// JoinOn constructs a JoinFragment with the given type, table and on clause,
+// where the table name can be a string or RawFragment.
+func JoinOn(typ JoinType, table interface{}, on *OnFragment) *JoinFragment {
 	return &JoinFragment{
 		Type:  typ,
-		Table: table,
+		Table: Table(table),
 		On:    on,
 	}
 }
 
 // JoinUsing constructs a JoinFragment with the given type, table and using
-// clause.
-func JoinUsing(typ JoinType, table *TableFragment, using *UsingFragment) *JoinFragment {
+// clause, where the table name can be a string or RawFragment.
+func JoinUsing(typ JoinType, table interface{}, using *UsingFragment) *JoinFragment {
 	return &JoinFragment{
 		Type:  typ,
-		Table: table,
+		Table: Table(table),
 		Using: using,
 	}
 }

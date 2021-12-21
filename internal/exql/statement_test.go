@@ -156,9 +156,7 @@ func TestStatement_Insert(t *testing.T) {
 					Column("email"),
 					Column("created_at"),
 				),
-				Values: ValuesGroups(
-					ValuesGroup(Value("alice"), Value("alice@example.com"), Raw("NOW()")),
-				),
+				Values: ValuesGroup(Value("alice"), Value("alice@example.com"), Raw("NOW()")),
 			},
 			want: `INSERT INTO "users" ("name", "email", "created_at") VALUES ('alice', 'alice@example.com', NOW())`,
 		},
@@ -189,9 +187,7 @@ func TestStatement_Insert(t *testing.T) {
 					Column("email"),
 					Column("created_at"),
 				),
-				Values: ValuesGroups(
-					ValuesGroup(Value("alice"), Value("alice@example.com"), Raw("NOW()")),
-				),
+				Values:    ValuesGroup(Value("alice"), Value("alice@example.com"), Raw("NOW()")),
 				Returning: Returning(Column("id")),
 			},
 			want: `INSERT INTO "users" ("name", "email", "created_at") VALUES ('alice', 'alice@example.com', NOW()) RETURNING "id"`,
@@ -269,6 +265,20 @@ func TestStatement_Select(t *testing.T) {
 			},
 			want: `SELECT "users".*, "c"."id", "sid" FROM "users", "customers" AS "c", "sellers"."id" AS "sid", "sellers"."name" AS "sname"`,
 		},
+		{
+			name: "join ON",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("user_emails.email"),
+				Joins: JoinOn(
+					DefaultJoin,
+					"user_emails",
+					On(ColumnValue("users.id", expr.ComparisonEqual, Column("user_emails.id"))),
+				),
+			},
+			want: `SELECT "user_emails"."email" FROM "users" JOIN "user_emails" ON ("users"."id" = "user_emails"."id")`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -279,36 +289,6 @@ func TestStatement_Select(t *testing.T) {
 	}
 }
 
-//
-// func TestSelectJoin(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("artist a"),
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "a.name"},
-// 		),
-// 		Joins: JoinConditions(&JoinFragment{
-// 			Table: Table("books b"),
-// 			On: OnConditions(
-// 				&ColumnValueFragment{
-// 					Column:   ColumnWithName("b.author_id"),
-// 					Operator: `=`,
-// 					Value:    NewValue(ColumnWithName("a.id")),
-// 				},
-// 			),
-// 		}),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "a"."name" FROM "artist" AS "a" JOIN "books" AS "b" ON ("b"."author_id" = "a"."id")`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
 // func TestSelectJoinUsing(t *testing.T) {
 // 	var s, e string
 //

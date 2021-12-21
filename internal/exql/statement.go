@@ -40,13 +40,13 @@ type Statement struct {
 	Type         StatementType
 	Database     *DatabaseFragment
 	Table        Fragment
-	Columns      *ColumnsFragment
-	Values       *ValuesGroupsFragment
+	Columns      Fragment
+	Values       Fragment
 	Distinct     bool
 	ColumnValues *ColumnValuesFragment
 	OrderBy      *OrderByFragment
 	GroupBy      *GroupByFragment
-	Joins        *JoinsFragment
+	Joins        Fragment
 	Where        *WhereFragment
 	Returning    *ReturningFragment
 
