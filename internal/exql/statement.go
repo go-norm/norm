@@ -6,8 +6,6 @@
 package exql
 
 import (
-	"strings"
-
 	"github.com/pkg/errors"
 )
 
@@ -29,6 +27,15 @@ const (
 	StatementSQL
 )
 
+type (
+	// Limit represents the limit in a SQL query.
+	Limit int
+	// Offset represents the offset in a SQL query.
+	Offset int
+)
+
+var _ Fragment = (*Statement)(nil)
+
 // Statement is an AST for constructing SQL statements.
 //
 // CAUTION: Modifications to the fields will not be reflected after the
@@ -41,14 +48,14 @@ type Statement struct {
 	Database     *DatabaseFragment
 	Table        *TableFragment
 	Columns      *ColumnsFragment
-	Values       Fragment
+	Values       *ValuesGroupsFragment
 	Distinct     bool
-	ColumnValues Fragment
-	OrderBy      Fragment
-	GroupBy      Fragment
-	Joins        Fragment
-	Where        Fragment
-	Returning    Fragment
+	ColumnValues *ColumnValuesFragment
+	OrderBy      *OrderByFragment
+	GroupBy      *GroupByFragment
+	Joins        *JoinsFragment
+	Where        *WhereFragment
+	Returning    *ReturningFragment
 
 	Limit  Limit
 	Offset Offset
@@ -58,21 +65,11 @@ type Statement struct {
 	amendFn func(string) string
 }
 
-// todo
-
-type (
-	// Limit represents the SQL limit in a query.
-	Limit int
-	// Offset represents the SQL offset in a query.
-	Offset int
-)
-
-// Hash returns a unique identifier for the struct.
 func (s *Statement) Hash() string {
 	return s.hash.Hash(s)
 }
 
-func (s *Statement) SetAmendment(amendFn func(string) string) {
+func (s *Statement) SetAmend(amendFn func(string) string) {
 	s.amendFn = amendFn
 }
 
@@ -83,57 +80,55 @@ func (s *Statement) Amend(in string) string {
 	return s.amendFn(in)
 }
 
-var errUnknownTemplateType = errors.New("unknown template type")
-
-func (s *Statement) template(layout *Template) (string, error) {
+func (s *Statement) layout() (TemplateLayout, error) {
 	switch s.Type {
 	case StatementTruncate:
-		return layout.TruncateLayout, nil
+		return LayoutTruncate, nil
 	case StatementDropTable:
-		return layout.DropTableLayout, nil
+		return LayoutDropTable, nil
 	case StatementDropDatabase:
-		return layout.DropDatabaseLayout, nil
+		return LayoutDropDatabase, nil
 	case StatementCount:
-		return layout.CountLayout, nil
+		return LayoutCount, nil
 	case StatementInsert:
-		return layout.InsertLayout, nil
+		return LayoutInsert, nil
 	case StatementSelect:
-		return layout.SelectLayout, nil
+		return LayoutSelect, nil
 	case StatementUpdate:
-		return layout.UpdateLayout, nil
+		return LayoutUpdate, nil
 	case StatementDelete:
-		return layout.DeleteLayout, nil
+		return LayoutDelete, nil
 	}
-	return "", errUnknownTemplateType
+	return LayoutNone, errors.Errorf("unexpected type %v", s.Type)
 }
 
-// Compile transforms the Statement into an equivalent SQL query.
-func (s *Statement) Compile(layout *Template) (string, error) {
+func (s *Statement) Compile(t *Template) (string, error) {
 	if s.Type == StatementSQL {
-		// No need to hit the cache.
 		return s.SQL, nil
 	}
 
-	if z, ok := layout.Get(s); ok {
+	if z, ok := t.Get(s); ok {
 		return s.Amend(z), nil
 	}
 
-	tpl, err := s.template(layout)
+	layout, err := s.layout()
 	if err != nil {
-		return "", errors.Wrap(err, "get template")
+		return "", errors.Wrap(err, "get layout")
 	}
 
-	// todo: return error, not panic
-	compiled := layout.Compile(tpl, s)
-	compiled = strings.TrimSpace(compiled)
-	layout.Set(s, compiled)
+	compiled, err := t.Compile(layout, s)
+	if err != nil {
+		return "", errors.Wrap(err, "compile")
+	}
+
+	t.Set(s, compiled)
 	return s.Amend(compiled), nil
 }
 
-// RawSQL represents a raw SQL statement.
-func RawSQL(s string) *Statement {
+// RawSQL constructs a Statement with the given SQL query.
+func RawSQL(sql string) *Statement {
 	return &Statement{
 		Type: StatementSQL,
-		SQL:  s,
+		SQL:  sql,
 	}
 }
