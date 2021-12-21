@@ -75,8 +75,8 @@ func TestJoinOn(t *testing.T) {
 		DefaultJoin,
 		Table("countries c"),
 		On(
-			ColumnValue(Column("p.country_id"), expr.ComparisonEqual, Column("a.id")),
-			ColumnValue(Column("p.country_code"), expr.ComparisonEqual, Column("a.code")),
+			ColumnValue("p.country_id", expr.ComparisonEqual, Column("a.id")),
+			ColumnValue("p.country_code", expr.ComparisonEqual, Column("a.code")),
 		),
 	)
 
@@ -128,17 +128,17 @@ func TestOn(t *testing.T) {
 
 	on := On(
 		And(
-			ColumnValue(Column("id"), expr.ComparisonGreaterThan, Raw("8")),
-			ColumnValue(Column("id"), expr.ComparisonLessThan, Raw("99")),
+			ColumnValue("id", expr.ComparisonGreaterThan, Raw("8")),
+			ColumnValue("id", expr.ComparisonLessThan, Raw("99")),
 			Or(
-				ColumnValue(Column("age"), expr.ComparisonLessThan, Raw("18")),
-				ColumnValue(Column("age"), expr.ComparisonGreaterThan, Raw("41")),
+				ColumnValue("age", expr.ComparisonLessThan, Raw("18")),
+				ColumnValue("age", expr.ComparisonGreaterThan, Raw("41")),
 			),
 		),
-		ColumnValue(Column("name"), expr.ComparisonEqual, Raw(`'John'`)),
+		ColumnValue("name", expr.ComparisonEqual, Raw(`'John'`)),
 		Or(
-			ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Smith'`)),
-			ColumnValue(Column("last_name"), expr.ComparisonEqual, Raw(`'Reyes'`)),
+			ColumnValue("last_name", expr.ComparisonEqual, Raw(`'Smith'`)),
+			ColumnValue("last_name", expr.ComparisonEqual, Raw(`'Reyes'`)),
 		),
 		Raw("city_id = 728"),
 	)

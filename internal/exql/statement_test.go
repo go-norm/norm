@@ -32,7 +32,7 @@ func TestStatement(t *testing.T) {
 				Type:  StatementDelete,
 				Table: Table("users"),
 				Where: Where(
-					ColumnValue(Column("id"), expr.ComparisonEqual, Raw("99")),
+					ColumnValue("id", expr.ComparisonEqual, Raw("99")),
 				),
 			},
 			want: `DELETE FROM "users" WHERE ("id" = 99)`,
@@ -54,19 +54,6 @@ func TestStatement(t *testing.T) {
 			want: `DROP TABLE "users"`,
 		},
 		{
-			name: "select",
-			statement: &Statement{
-				Type:  StatementSelect,
-				Table: Table("users"),
-				Columns: Columns(
-					Column("name"),
-					Column("email"),
-					Column("created_at"),
-				),
-			},
-			want: `SELECT "name", "email", "created_at" FROM "users"`,
-		},
-		{
 			name: "truncate table",
 			statement: &Statement{
 				Type:  StatementTruncate,
@@ -80,10 +67,10 @@ func TestStatement(t *testing.T) {
 				Type:  StatementUpdate,
 				Table: Table("users"),
 				ColumnValues: ColumnValues(
-					ColumnValue(Column("email"), expr.ComparisonEqual, Value("alice@example.com")),
+					ColumnValue("email", expr.ComparisonEqual, Value("alice@example.com")),
 				),
 				Where: Where(
-					ColumnValue(Column("name"), expr.ComparisonEqual, Value("alice")),
+					ColumnValue("name", expr.ComparisonEqual, Value("alice")),
 				),
 			},
 			want: `UPDATE "users" SET "email" = 'alice@example.com' WHERE ("name" = 'alice')`,
@@ -137,7 +124,7 @@ func TestStatement_Count(t *testing.T) {
 				Type:  StatementCount,
 				Table: Table("users"),
 				Where: Where(
-					ColumnValue(Column("created_at"), expr.ComparisonGreaterThan, Raw("NOW()")),
+					ColumnValue("created_at", expr.ComparisonGreaterThan, Raw("NOW()")),
 				),
 			},
 			want: `SELECT COUNT(*) FROM "users" WHERE ("created_at" > NOW())`,
@@ -154,12 +141,6 @@ func TestStatement_Count(t *testing.T) {
 
 func TestStatement_Insert(t *testing.T) {
 	tmpl := defaultTemplate(t)
-
-	t.Run("unexpected type", func(t *testing.T) {
-		_, err := (&Statement{}).Compile(tmpl)
-		assert.Error(t, err)
-	})
-
 	tests := []struct {
 		name      string
 		statement *Statement
@@ -225,75 +206,82 @@ func TestStatement_Insert(t *testing.T) {
 	}
 }
 
-//
-// func TestSelectStarFrom(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("table_name"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT * FROM "table_name"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectStarFromAlias(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("table.name AS foo"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT * FROM "table"."name" AS "foo"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectStarFromRawWhere(t *testing.T) {
-// 	var s, e string
-// 	var stmt Statement
-//
-// 	stmt = Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("table.name AS foo"),
-// 		Where: WhereConditions(
-// 			&RawFragment{Value: "foo.id = bar.foo_id"},
-// 		),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT * FROM "table"."name" AS "foo" WHERE (foo.id = bar.foo_id)`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-//
-// 	stmt = Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("table.name AS foo"),
-// 		Where: WhereConditions(
-// 			&RawFragment{Value: "foo.id = bar.foo_id"},
-// 			&RawFragment{Value: "baz.id = exp.baz_id"},
-// 		),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT * FROM "table"."name" AS "foo" WHERE (foo.id = bar.foo_id AND baz.id = exp.baz_id)`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
+func TestStatement_Select(t *testing.T) {
+	tmpl := defaultTemplate(t)
+	tests := []struct {
+		name      string
+		statement *Statement
+		want      string
+	}{
+		{
+			name: "normal",
+			statement: &Statement{
+				Type:  StatementSelect,
+				Table: Table("users"),
+				Columns: Columns(
+					Column("name"),
+					Column("email"),
+					Column("created_at"),
+				),
+			},
+			want: `SELECT "name", "email", "created_at" FROM "users"`,
+		},
+		{
+			name: "alias",
+			statement: &Statement{
+				Type:  StatementSelect,
+				Table: Table("users.name AS foo"),
+			},
+			want: `SELECT * FROM "users"."name" AS "foo"`,
+		},
+		{
+			name: "where",
+			statement: &Statement{
+				Type:  StatementSelect,
+				Table: Table("users"),
+				Columns: Columns(
+					Column("name"),
+					Column("email"),
+					Column("created_at"),
+				),
+				Where: Where(
+					ColumnValue("id", expr.ComparisonEqual, Raw("1")),
+					Raw("deleted_at IS NULL"),
+				),
+			},
+			want: `SELECT "name", "email", "created_at" FROM "users" WHERE ("id" = 1 AND deleted_at IS NULL)`,
+		},
+		// {
+		// 	name: "all from many",
+		// 	statement: &Statement{
+		// 		Type:         StatementSelect,
+		// 		Table:        nil,
+		// 		Columns:      nil,
+		// 		Values:       nil,
+		// 		Distinct:     false,
+		// 		ColumnValues: nil,
+		// 		OrderBy:      nil,
+		// 		GroupBy:      nil,
+		// 		Joins:        nil,
+		// 		Where:        nil,
+		// 		Returning:    nil,
+		// 		Limit:        0,
+		// 		Offset:       0,
+		// 		SQL:          "",
+		// 		amendFn:      nil,
+		// 	},
+		// 	want: "",
+		// },
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := test.statement.Compile(tmpl)
+			require.NoError(t, err)
+			assert.Equal(t, test.want, stripWhitespace(got))
+		})
+	}
+}
+
 // func TestSelectStarFromMany(t *testing.T) {
 // 	var s, e string
 //
@@ -309,6 +297,7 @@ func TestStatement_Insert(t *testing.T) {
 // 		t.Fatalf("Got: %s, Expecting: %s", s, e)
 // 	}
 // }
+
 //
 // func TestSelectTableStarFromMany(t *testing.T) {
 // 	var s, e string
