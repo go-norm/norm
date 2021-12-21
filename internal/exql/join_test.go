@@ -31,32 +31,32 @@ func TestJoin(t *testing.T) {
 	}{
 		{
 			name: "natural",
-			join: Join(Table("users")),
+			join: Join("users"),
 			want: `NATURAL JOIN "users"`,
 		},
 		{
 			name: "natural full",
-			join: JoinUsing(FullJoin, Table("users"), nil),
+			join: JoinUsing(FullJoin, "users", nil),
 			want: `NATURAL FULL JOIN "users"`,
 		},
 		{
 			name: "full",
-			join: JoinUsing(FullJoin, Table("users"), Using(Column("users.id"))),
+			join: JoinUsing(FullJoin, "users", Using(Column("users.id"))),
 			want: `FULL JOIN "users" USING ("users"."id")`,
 		},
 		{
 			name: "cross",
-			join: JoinUsing(CrossJoin, Table("users"), Using(Column("users.id"))),
+			join: JoinUsing(CrossJoin, "users", Using(Column("users.id"))),
 			want: `CROSS JOIN "users" USING ("users"."id")`,
 		},
 		{
 			name: "right",
-			join: JoinUsing(RightJoin, Table("users"), Using(Column("users.id"))),
+			join: JoinUsing(RightJoin, "users", Using(Column("users.id"))),
 			want: `RIGHT JOIN "users" USING ("users"."id")`,
 		},
 		{
 			name: "left",
-			join: JoinUsing(LeftJoin, Table("users"), Using(Column("users.id"))),
+			join: JoinUsing(LeftJoin, "users", Using(Column("users.id"))),
 			want: `LEFT JOIN "users" USING ("users"."id")`,
 		},
 	}
@@ -73,7 +73,7 @@ func TestJoinOn(t *testing.T) {
 	tmpl := defaultTemplate(t)
 	join := JoinOn(
 		DefaultJoin,
-		Table("countries c"),
+		"countries c",
 		On(
 			ColumnValue("p.country_id", expr.ComparisonEqual, Column("a.id")),
 			ColumnValue("p.country_code", expr.ComparisonEqual, Column("a.code")),
@@ -83,7 +83,11 @@ func TestJoinOn(t *testing.T) {
 	got, err := join.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := `JOIN "countries" AS "c" ON ("p"."country_id" = "a"."id" AND "p"."country_code" = "a"."code")`
+	want := stripWhitespace(`
+JOIN "countries" AS "c" ON (
+		"p"."country_id" = "a"."id"
+	AND "p"."country_code" = "a"."code"
+)`)
 	assert.Equal(t, want, stripWhitespace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
@@ -97,7 +101,7 @@ func TestJoinUsing(t *testing.T) {
 	tmpl := defaultTemplate(t)
 	join := JoinUsing(
 		DefaultJoin,
-		Table("countries c"),
+		"countries c",
 		Using(
 			Column("p.country_id"),
 			Column("p.country_code"),
@@ -146,7 +150,17 @@ func TestOn(t *testing.T) {
 	got, err := on.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := `ON (("id" > 8 AND "id" < 99 AND ("age" < 18 OR "age" > 41)) AND "name" = 'John' AND ("last_name" = 'Smith' OR "last_name" = 'Reyes') AND city_id = 728)`
+	want := stripWhitespace(`
+ON (
+		(
+				"id" > 8
+			AND "id" < 99
+			AND ("age" < 18 OR "age" > 41)
+		)
+	AND "name" = 'John'
+	AND ("last_name" = 'Smith' OR "last_name" = 'Reyes')
+	AND city_id = 728
+)`)
 	assert.Equal(t, want, strings.TrimSpace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
@@ -196,8 +210,8 @@ func TestJoins(t *testing.T) {
 	})
 
 	js := Joins(
-		Join(Table("users")),
-		JoinUsing(FullJoin, Table("users"), Using(Column("users.id"))),
+		Join("users"),
+		JoinUsing(FullJoin, "users", Using(Column("users.id"))),
 	)
 
 	got, err := js.Compile(tmpl)

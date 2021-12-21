@@ -266,7 +266,7 @@ func TestStatement_Select(t *testing.T) {
 			want: `SELECT "users".*, "c"."id", "sid" FROM "users", "customers" AS "c", "sellers"."id" AS "sid", "sellers"."name" AS "sname"`,
 		},
 		{
-			name: "join ON",
+			name: "join on",
 			statement: &Statement{
 				Type:    StatementSelect,
 				Table:   Table("users"),
@@ -279,6 +279,54 @@ func TestStatement_Select(t *testing.T) {
 			},
 			want: `SELECT "user_emails"."email" FROM "users" JOIN "user_emails" ON ("users"."id" = "user_emails"."id")`,
 		},
+		{
+			name: "join using",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("user_emails.email"),
+				Joins: JoinUsing(
+					DefaultJoin,
+					"user_emails",
+					Using(Column("user_id")),
+				),
+			},
+			want: `SELECT "user_emails"."email" FROM "users" JOIN "user_emails" USING ("user_id")`,
+		},
+		{
+			name: "natural join",
+			statement: &Statement{
+				Type:    StatementSelect,
+				Table:   Table("users"),
+				Columns: Column("user_emails.email"),
+				Joins:   Join("user_emails"),
+			},
+			want: `SELECT "user_emails"."email" FROM "users" NATURAL JOIN "user_emails"`,
+		},
+		{
+			name: "multiple joins",
+			statement: &Statement{
+				Type:  StatementSelect,
+				Table: Table("users"),
+				Columns: Columns(
+					Column("user_emails.email"),
+					Column("user_invites.id"),
+				),
+				Joins: Joins(
+					JoinOn(
+						DefaultJoin,
+						"user_emails",
+						On(ColumnValue("users.id", expr.ComparisonEqual, Column("user_emails.id"))),
+					),
+					JoinOn(
+						DefaultJoin,
+						"user_invites",
+						On(ColumnValue("users.id", expr.ComparisonEqual, Column("user_invites.id"))),
+					),
+				),
+			},
+			want: `SELECT "user_emails"."email", "user_invites"."id" FROM "users" JOIN "user_emails" ON ("users"."id" = "user_emails"."id") JOIN "user_invites" ON ("users"."id" = "user_invites"."id")`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -289,68 +337,6 @@ func TestStatement_Select(t *testing.T) {
 	}
 }
 
-// func TestSelectJoinUsing(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("artist a"),
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "a.name"},
-// 		),
-// 		Joins: JoinConditions(&JoinFragment{
-// 			Table: Table("books b"),
-// 			Using: UsingColumns(
-// 				ColumnWithName("artist_id"),
-// 				ColumnWithName("country"),
-// 			),
-// 		}),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "a"."name" FROM "artist" AS "a" JOIN "books" AS "b" USING ("artist_id", "country")`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectUnfinishedJoin(t *testing.T) {
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("artist a"),
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "a.name"},
-// 		),
-// 		Joins: JoinConditions(&JoinFragment{}),
-// 	}
-//
-// 	s := mustTrim(stmt.Compile(defaultTemplate))
-// 	e := `SELECT "a"."name" FROM "artist" AS "a"`
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectNaturalJoin(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("artist"),
-// 		Joins: JoinConditions(&JoinFragment{
-// 			Table: Table("books"),
-// 		}),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT * FROM "artist" NATURAL JOIN "books"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
 // func TestSelectRawFrom(t *testing.T) {
 // 	var s, e string
 //

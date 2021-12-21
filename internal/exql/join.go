@@ -40,30 +40,32 @@ type JoinFragment struct {
 // Join constructs a JoinFragment with the given table as a NATURAL JOIN, where
 // the table name can be a string or RawFragment.
 func Join(table interface{}) *JoinFragment {
+	var t *TableFragment
+	if table != nil {
+		t = Table(table)
+	}
 	return &JoinFragment{
 		Type:  DefaultJoin,
-		Table: Table(table),
+		Table: t,
 	}
 }
 
 // JoinOn constructs a JoinFragment with the given type, table and on clause,
 // where the table name can be a string or RawFragment.
 func JoinOn(typ JoinType, table interface{}, on *OnFragment) *JoinFragment {
-	return &JoinFragment{
-		Type:  typ,
-		Table: Table(table),
-		On:    on,
-	}
+	join := Join(table)
+	join.Type = typ
+	join.On = on
+	return join
 }
 
 // JoinUsing constructs a JoinFragment with the given type, table and using
 // clause, where the table name can be a string or RawFragment.
 func JoinUsing(typ JoinType, table interface{}, using *UsingFragment) *JoinFragment {
-	return &JoinFragment{
-		Type:  typ,
-		Table: Table(table),
-		Using: using,
-	}
+	join := Join(table)
+	join.Type = typ
+	join.Using = using
+	return join
 }
 
 func (j *JoinFragment) Hash() string {
