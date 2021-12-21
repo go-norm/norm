@@ -7,48 +7,108 @@ package exql
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValue(t *testing.T) {
-	val := NewValue(1)
-
-	s, err := val.Compile(defaultTemplate)
-	if err != nil {
-		t.Fatal()
+	tmpl := defaultTemplate(t)
+	tests := []struct {
+		name  string
+		value *ValueFragment
+		want  string
+	}{
+		{
+			name:  "string",
+			value: Value("John"),
+			want:  `'John'`,
+		},
+		{
+			name:  "int",
+			value: Value(1),
+			want:  `'1'`,
+		},
+		{
+			name:  "raw",
+			value: Value(Raw("NOW()")),
+			want:  `NOW()`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := test.value.Compile(tmpl)
+			assert.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
 	}
 
-	e := `'1'`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
-
-	val = NewValue(&RawFragment{Value: "NOW()"})
-
-	s, err = val.Compile(defaultTemplate)
-	if err != nil {
-		t.Fatal()
-	}
-
-	e = `NOW()`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := Value(1).Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, `'1'`, got)
+	})
 }
 
-func TestValues(t *testing.T) {
-	val := NewValueGroup(
-		&ValueFragment{V: &RawFragment{Value: "1"}},
-		&ValueFragment{V: &RawFragment{Value: "2"}},
-		&ValueFragment{V: "3"},
+func TestValuesGroup(t *testing.T) {
+	tmpl := defaultTemplate(t)
+
+	t.Run("empty", func(t *testing.T) {
+		got, err := ValuesGroup().Compile(tmpl)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	vg := ValuesGroup(
+		Value("John"),
+		Value(1),
+		Value(Raw("NOW()")),
 	)
 
-	s, err := val.Compile(defaultTemplate)
-	if err != nil {
-		t.Fatal()
-	}
+	got, err := vg.Compile(tmpl)
+	require.NoError(t, err)
 
-	e := `(1, 2, '3')`
-	if s != e {
-		t.Fatalf("Got: %s, Expecting: %s", s, e)
-	}
+	want := `('John', '1', NOW())`
+	assert.Equal(t, want, got)
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := vg.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
+}
+
+func TestValuesGroups(t *testing.T) {
+	tmpl := defaultTemplate(t)
+
+	t.Run("empty", func(t *testing.T) {
+		got, err := ValuesGroups().Compile(tmpl)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	vgs := ValuesGroups(
+		ValuesGroup(
+			Value("John"),
+			Value(1),
+			Value(Raw("NOW()")),
+		),
+		ValuesGroup(
+			Value("Joe"),
+			Value(2),
+			Value(Raw("NOW()")),
+		),
+	)
+
+	got, err := vgs.Compile(tmpl)
+	require.NoError(t, err)
+
+	want := `('John', '1', NOW()), ('Joe', '2', NOW())`
+	assert.Equal(t, want, got)
+
+	t.Run("cache hit", func(t *testing.T) {
+		got, err := vgs.Compile(tmpl)
+		assert.NoError(t, err)
+		assert.Equal(t, want, got)
+	})
 }
