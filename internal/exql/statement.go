@@ -39,7 +39,7 @@ type Statement struct {
 
 	Type         StatementType
 	Database     *DatabaseFragment
-	Table        *TableFragment
+	Table        Fragment
 	Columns      *ColumnsFragment
 	Values       *ValuesGroupsFragment
 	Distinct     bool

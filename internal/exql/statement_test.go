@@ -251,27 +251,24 @@ func TestStatement_Select(t *testing.T) {
 			},
 			want: `SELECT "name", "email", "created_at" FROM "users" WHERE ("id" = 1 AND deleted_at IS NULL)`,
 		},
-		// {
-		// 	name: "all from many",
-		// 	statement: &Statement{
-		// 		Type:         StatementSelect,
-		// 		Table:        nil,
-		// 		Columns:      nil,
-		// 		Values:       nil,
-		// 		Distinct:     false,
-		// 		ColumnValues: nil,
-		// 		OrderBy:      nil,
-		// 		GroupBy:      nil,
-		// 		Joins:        nil,
-		// 		Where:        nil,
-		// 		Returning:    nil,
-		// 		Limit:        0,
-		// 		Offset:       0,
-		// 		SQL:          "",
-		// 		amendFn:      nil,
-		// 	},
-		// 	want: "",
-		// },
+		{
+			name: "from many",
+			statement: &Statement{
+				Type: StatementSelect,
+				Table: Tables(
+					Table("users"),
+					Table("customers AS c"),
+					Table("sellers.id AS sid"),
+					Table("sellers.name as sname"),
+				),
+				Columns: Columns(
+					Column("users.*"),
+					Column("c.id"),
+					Column("sid"),
+				),
+			},
+			want: `SELECT "users".*, "c"."id", "sid" FROM "users", "customers" AS "c", "sellers"."id" AS "sid", "sellers"."name" AS "sname"`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -282,62 +279,6 @@ func TestStatement_Select(t *testing.T) {
 	}
 }
 
-// func TestSelectStarFromMany(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("first.table AS foo, second.table as BAR, third.table aS baz"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT * FROM "first"."table" AS "foo", "second"."table" AS "BAR", "third"."table" AS "baz"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-
-//
-// func TestSelectTableStarFromMany(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type: StatementSelect,
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "foo.name"},
-// 			&ColumnFragment{Name: "BAR.*"},
-// 			&ColumnFragment{Name: "baz.last_name"},
-// 		),
-// 		Table: Table("first.table AS foo, second.table as BAR, third.table aS baz"),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "foo"."name", "BAR".*, "baz"."last_name" FROM "first"."table" AS "foo", "second"."table" AS "BAR", "third"."table" AS "baz"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
-//
-// func TestSelectArtistNameFrom(t *testing.T) {
-// 	var s, e string
-//
-// 	stmt := Statement{
-// 		Type:  StatementSelect,
-// 		Table: Table("artist"),
-// 		Columns: Columns(
-// 			&ColumnFragment{Name: "artist.name"},
-// 		),
-// 	}
-//
-// 	s = mustTrim(stmt.Compile(defaultTemplate))
-// 	e = `SELECT "artist"."name" FROM "artist"`
-//
-// 	if s != e {
-// 		t.Fatalf("Got: %s, Expecting: %s", s, e)
-// 	}
-// }
 //
 // func TestSelectJoin(t *testing.T) {
 // 	var s, e string
