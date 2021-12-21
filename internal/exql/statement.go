@@ -5,4 +5,5 @@
 package exql
 
 // Statement is an AST for constructing SQL statements.
-type Statement struct{}
+type Statement struct {
+}

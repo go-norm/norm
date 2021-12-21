@@ -189,13 +189,16 @@ type Selector interface {
 }
 
 // Inserter represents a SQL query builder for the INSERT statement.
-type Inserter interface{}
+type Inserter interface {
+}
 
 // Updater represents a SQL query builder for the UPDATE statement.
-type Updater interface{}
+type Updater interface {
+}
 
 // Deleter represents a SQL query builder for the DELETE statement.
-type Deleter interface{}
+type Deleter interface {
+}
 
 // Iterator defines a collection of methods to iterate over query results.
 type Iterator interface {

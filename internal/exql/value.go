@@ -15,6 +15,10 @@ import (
 var _ Fragment = (*ValueFragment)(nil)
 
 // ValueFragment is an escaped value in the SQL statement.
+//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
 type ValueFragment struct {
 	hash  hash
 	Value interface{}
@@ -54,73 +58,52 @@ func (v *ValueFragment) Compile(t *Template) (compiled string, err error) {
 	return compiled, nil
 }
 
-// todo
+var _ Fragment = (*ValuesFragment)(nil)
 
-// ValueGroups represents an array of value groups.
-type ValueGroups struct {
-	Values []*Values
+// ValuesFragment is a list of ValueFragment.
+//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
+type ValuesFragment struct {
 	hash   hash
+	Values []*ValueFragment
 }
 
-func (vg *ValueGroups) Empty() bool {
-	if vg == nil || len(vg.Values) < 1 {
-		return true
+// Values constructs a ValuesFragment with the given values.
+func Values(values ...*ValueFragment) *ValuesFragment {
+	return &ValuesFragment{
+		Values: values,
 	}
-	for i := range vg.Values {
-		if !vg.Values[i].Empty() {
-			return false
-		}
-	}
-	return true
 }
 
-var _ = Fragment(&ValueGroups{})
-
-// Values represents an array of Value.
-type Values struct {
-	Values []Fragment
-	hash   hash
-}
-
-func (vs *Values) Empty() bool {
-	if vs == nil || len(vs.Values) < 1 {
-		return true
-	}
-	return false
-}
-
-var _ = Fragment(&Values{})
-
-// NewValueGroup creates and returns an array of values.
-func NewValueGroup(v ...Fragment) *Values {
-	return &Values{Values: v}
-}
-
-// Hash returns a unique identifier for the struct.
-func (vs *Values) Hash() string {
+func (vs *ValuesFragment) Hash() string {
 	return vs.hash.Hash(vs)
 }
 
-// Compile transforms the Values into an equivalent SQL representation.
-func (vs *Values) Compile(layout *Template) (string, error) {
-	if c, ok := layout.Get(vs); ok {
-		return c, nil
+func (vs *ValuesFragment) Compile(t *Template) (compiled string, err error) {
+	if len(vs.Values) == 0 {
+		return "", nil
 	}
 
-	var compiled string
-	l := len(vs.Values)
-	if l > 0 {
-		chunks := make([]string, 0, l)
-		for i := 0; i < l; i++ {
-			chunk, err := vs.Values[i].Compile(layout)
-			if err != nil {
-				return "", err
-			}
-			chunks = append(chunks, chunk)
-		}
-		compiled = layout.Compile(layout.ClauseGroup, strings.Join(chunks, layout.ValueSeparator))
+	if v, ok := t.Get(vs); ok {
+		return v, nil
 	}
-	layout.Set(vs, compiled)
+
+	out := make([]string, len(vs.Values))
+	for i := range vs.Values {
+		out[i], err = vs.Values[i].Compile(t)
+		if err != nil {
+			return "", errors.Wrap(err, "compile value")
+		}
+	}
+
+	compiled, err = t.Compile(LayoutClauseGroup, strings.Join(out, t.layouts[LayoutValueSeparator]))
+	if err != nil {
+		return "", errors.Wrapf(err, "compile LayoutClauseGroup with values %v", out)
+	}
+
+	t.Set(vs, compiled)
 	return compiled, nil
 }
 
