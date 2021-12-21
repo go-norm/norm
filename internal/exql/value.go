@@ -58,41 +58,41 @@ func (v *ValueFragment) Compile(t *Template) (compiled string, err error) {
 	return compiled, nil
 }
 
-var _ Fragment = (*ValuesFragment)(nil)
+var _ Fragment = (*ValuesGroupFragment)(nil)
 
-// ValuesFragment is a list of ValueFragment.
+// ValuesGroupFragment is a group of ValueFragment.
 //
 // NOTE: Fields are public purely for the purpose of being hashable. Direct
 // modifications to them after construction may not take effect depends on
 // whether the hash has been computed.
-type ValuesFragment struct {
+type ValuesGroupFragment struct {
 	hash   hash
 	Values []*ValueFragment
 }
 
-// Values constructs a ValuesFragment with the given values.
-func Values(values ...*ValueFragment) *ValuesFragment {
-	return &ValuesFragment{
+// ValuesGroup constructs a ValuesGroupFragment with the given values.
+func ValuesGroup(values ...*ValueFragment) *ValuesGroupFragment {
+	return &ValuesGroupFragment{
 		Values: values,
 	}
 }
 
-func (vs *ValuesFragment) Hash() string {
-	return vs.hash.Hash(vs)
+func (vg *ValuesGroupFragment) Hash() string {
+	return vg.hash.Hash(vg)
 }
 
-func (vs *ValuesFragment) Compile(t *Template) (compiled string, err error) {
-	if len(vs.Values) == 0 {
+func (vg *ValuesGroupFragment) Compile(t *Template) (compiled string, err error) {
+	if len(vg.Values) == 0 {
 		return "", nil
 	}
 
-	if v, ok := t.Get(vs); ok {
+	if v, ok := t.Get(vg); ok {
 		return v, nil
 	}
 
-	out := make([]string, len(vs.Values))
-	for i := range vs.Values {
-		out[i], err = vs.Values[i].Compile(t)
+	out := make([]string, len(vg.Values))
+	for i := range vg.Values {
+		out[i], err = vg.Values[i].Compile(t)
 		if err != nil {
 			return "", errors.Wrap(err, "compile value")
 		}
@@ -103,40 +103,52 @@ func (vs *ValuesFragment) Compile(t *Template) (compiled string, err error) {
 		return "", errors.Wrapf(err, "compile LayoutClauseGroup with values %v", out)
 	}
 
-	t.Set(vs, compiled)
+	t.Set(vg, compiled)
 	return compiled, nil
 }
 
-// Hash returns a unique identifier for the struct.
-func (vg *ValueGroups) Hash() string {
-	return vg.hash.Hash(vg)
+var _ Fragment = (*ValuesGroupsFragment)(nil)
+
+// ValuesGroupsFragment is a list of ValuesGroupFragment.
+//
+// NOTE: Fields are public purely for the purpose of being hashable. Direct
+// modifications to them after construction may not take effect depends on
+// whether the hash has been computed.
+type ValuesGroupsFragment struct {
+	hash   hash
+	Groups []*ValuesGroupFragment
 }
 
-// Compile transforms the ValueGroups into an equivalent SQL representation.
-func (vg *ValueGroups) Compile(layout *Template) (string, error) {
-	if c, ok := layout.Get(vg); ok {
-		return c, nil
+// ValuesGroups constructs a ValuesGroupsFragment with the given list of values
+// groups.
+func ValuesGroups(groups ...*ValuesGroupFragment) *ValuesGroupsFragment {
+	return &ValuesGroupsFragment{
+		Groups: groups,
+	}
+}
+
+func (vgs *ValuesGroupsFragment) Hash() string {
+	return vgs.hash.Hash(vgs)
+}
+
+func (vgs *ValuesGroupsFragment) Compile(t *Template) (compiled string, err error) {
+	if len(vgs.Groups) == 0 {
+		return "", nil
 	}
 
-	var compiled string
-	l := len(vg.Values)
-	if l > 0 {
-		chunks := make([]string, 0, l)
-		for i := 0; i < l; i++ {
-			chunk, err := vg.Values[i].Compile(layout)
-			if err != nil {
-				return "", err
-			}
-			chunks = append(chunks, chunk)
+	if v, ok := t.Get(vgs); ok {
+		return v, nil
+	}
+
+	out := make([]string, len(vgs.Groups))
+	for i := range vgs.Groups {
+		out[i], err = vgs.Groups[i].Compile(t)
+		if err != nil {
+			return "", errors.Wrap(err, "compile values group")
 		}
-		compiled = strings.Join(chunks, layout.ValueSeparator)
 	}
 
-	layout.Set(vg, compiled)
+	compiled = strings.TrimSpace(strings.Join(out, t.layouts[LayoutValueSeparator]))
+	t.Set(vgs, compiled)
 	return compiled, nil
-}
-
-// JoinValueGroups creates a new *ValueGroups object.
-func JoinValueGroups(values ...*Values) *ValueGroups {
-	return &ValueGroups{Values: values}
 }
