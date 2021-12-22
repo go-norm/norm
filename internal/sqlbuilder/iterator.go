@@ -8,6 +8,7 @@ package sqlbuilder
 import (
 	"context"
 	"database/sql"
+	"io"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -21,7 +22,7 @@ var _ norm.Iterator = (*iterator)(nil)
 
 type iterator struct {
 	adapter adapter.Adapter
-	cursor  *sql.Rows // This is the main query cursor. It starts as a nil value.
+	cursor  cursor
 	err     error
 }
 
@@ -83,9 +84,93 @@ func (iter *iterator) One(_ context.Context, dest interface{}) (err error) {
 	return nil
 }
 
+type cursor interface {
+	io.Closer
+	Columns() ([]string, error)
+	Err() error
+	Next() bool
+	Scan(dest ...interface{}) error
+}
+
+func reset(v interface{}) {
+	elem := reflect.ValueOf(v).Elem()
+	typ := elem.Type()
+
+	var zero reflect.Value
+	switch elem.Kind() {
+	case reflect.Slice:
+		zero = reflect.MakeSlice(typ, 0, elem.Cap())
+	default:
+		zero = reflect.Zero(typ)
+	}
+
+	elem.Set(zero)
+}
+
+var defaultMapper = reflectx.NewMapper("db")
+
+func scanResult(typer adapter.Typer, rows cursor, typ reflect.Type, columns []string) (result reflect.Value, err error) {
+	switch typ.Kind() {
+	case reflect.Map:
+		result = reflect.MakeMap(typ)
+	case reflect.Struct:
+		result = reflect.New(typ)
+	case reflect.Ptr:
+		elem := typ.Elem()
+		if elem.Kind() != reflect.Struct {
+			return reflect.Value{}, errors.New("the type must be a map or struct or a pointer to a map or struct")
+		}
+		result = reflect.New(elem)
+	default:
+		return reflect.Value{}, errors.New("the type must be a map or struct or a pointer to a map or struct")
+	}
+
+	switch typ.Kind() {
+	case reflect.Struct:
+		values := make([]interface{}, len(columns))
+		typeMap := defaultMapper.TypeMap(typ)
+		fieldMap := typeMap.Names
+		for i, k := range columns {
+			fi, ok := fieldMap[k]
+			if !ok {
+				values[i] = new(interface{})
+				continue
+			}
+
+			f := reflectx.FieldByIndexes(result, fi.Index)
+			values[i] = typer.Scanner(f.Addr().Interface())
+		}
+
+		if err = rows.Scan(values...); err != nil {
+			return reflect.Value{}, errors.Wrap(err, "scan")
+		}
+		return result, nil
+
+	case reflect.Map:
+		values := make([]interface{}, len(columns))
+		for i := range values {
+			if typ.Elem().Kind() == reflect.Interface {
+				values[i] = new(interface{})
+			} else {
+				values[i] = reflect.New(typ.Elem()).Interface()
+			}
+		}
+
+		if err = rows.Scan(values...); err != nil {
+			return reflect.Value{}, errors.Wrap(err, "scan")
+		}
+
+		for i, column := range columns {
+			result.SetMapIndex(reflect.ValueOf(column), reflect.Indirect(reflect.ValueOf(values[i])))
+		}
+		return result, nil
+	}
+	panic("unreachable")
+}
+
 // fetchRows maps all the rows coming from the *sql.Rows into the given
 // destination. The typer is used to wrap custom types to satisfy sql.Scanner.
-func fetchRows(ctx context.Context, typer adapter.Typer, rows *sql.Rows, dest interface{}) error {
+func fetchRows(ctx context.Context, typer adapter.Typer, rows cursor, dest interface{}) error {
 	defer func() { _ = rows.Close() }()
 
 	destv := reflect.ValueOf(dest)
@@ -94,167 +179,70 @@ func fetchRows(ctx context.Context, typer adapter.Typer, rows *sql.Rows, dest in
 	} else if destv.Elem().Kind() != reflect.Slice {
 		return errors.New("the destination must be a slice")
 	}
+	reset(dest)
 
 	columns, err := rows.Columns()
 	if err != nil {
 		return errors.Wrap(err, "get columns")
 	}
 
-	slicev := destv.Elem()
-	itemT := slicev.Type().Elem()
-
-	reset(dest)
-
+	elem := destv.Elem()
+	typ := elem.Type() // .Elem()
+	var item reflect.Value
 	for rows.Next() {
-		item, err := fetchResult(typer, rows, itemT, columns)
-		if err != nil {
+		select {
+		case err = <-ctx.Done():
 			return err
+		default:
 		}
-		if itemT.Kind() == reflect.Ptr {
-			slicev = reflect.Append(slicev, item)
+
+		item, err = scanResult(typer, rows, typ, columns)
+		if err != nil {
+			return errors.Wrap(err, "scan result")
+		}
+
+		if typ.Kind() == reflect.Ptr {
+			elem = reflect.Append(elem, item)
 		} else {
-			slicev = reflect.Append(slicev, reflect.Indirect(item))
+			elem = reflect.Append(elem, reflect.Indirect(item))
 		}
 	}
-
-	destv.Elem().Set(slicev)
-
 	return rows.Err()
 }
 
-// todo
-
-func reset(data interface{}) {
-	// Resetting element.
-	v := reflect.ValueOf(data).Elem()
-	t := v.Type()
-
-	var z reflect.Value
-
-	switch v.Kind() {
-	case reflect.Slice:
-		z = reflect.MakeSlice(t, 0, v.Cap())
-	default:
-		z = reflect.Zero(t)
-	}
-
-	v.Set(z)
-}
-
-var ErrExpectingMapOrStruct = errors.New("argument must be either a map or a struct")
-
-// todo
-var Mapper = reflectx.NewMapper("db")
-
-func fetchResult(typer adapter.Typer, rows *sql.Rows, itemT reflect.Type, columns []string) (reflect.Value, error) {
-	var item reflect.Value
-	var err error
-
-	objT := itemT
-
-	switch objT.Kind() {
-	case reflect.Map:
-		item = reflect.MakeMap(objT)
-	case reflect.Struct:
-		item = reflect.New(objT)
-	case reflect.Ptr:
-		objT = itemT.Elem()
-		if objT.Kind() != reflect.Struct {
-			return item, ErrExpectingMapOrStruct
-		}
-		item = reflect.New(objT)
-	default:
-		return item, ErrExpectingMapOrStruct
-	}
-
-	switch objT.Kind() {
-	case reflect.Struct:
-		values := make([]interface{}, len(columns))
-		typeMap := Mapper.TypeMap(itemT)
-		fieldMap := typeMap.Names
-
-		for i, k := range columns {
-			fi, ok := fieldMap[k]
-			if !ok {
-				values[i] = new(interface{})
-				continue
-			}
-
-			f := reflectx.FieldByIndexes(item, fi.Index)
-			values[i] = typer.Scanner(f.Addr().Interface())
-		}
-
-		if err = rows.Scan(values...); err != nil {
-			return item, err
-		}
-
-	case reflect.Map:
-		columns, err := rows.Columns()
-		if err != nil {
-			return item, err
-		}
-
-		values := make([]interface{}, len(columns))
-		for i := range values {
-			if itemT.Elem().Kind() == reflect.Interface {
-				values[i] = new(interface{})
-			} else {
-				values[i] = reflect.New(itemT.Elem()).Interface()
-			}
-		}
-
-		if err = rows.Scan(values...); err != nil {
-			return item, err
-		}
-
-		for i, column := range columns {
-			item.SetMapIndex(reflect.ValueOf(column), reflect.Indirect(reflect.ValueOf(values[i])))
-		}
-	}
-
-	return item, nil
-}
-
-// fetchRow receives a *sql.Rows value and tries to map all the rows into a
-// single struct given by the pointer `dst`.
-func fetchRow(typer adapter.Typer, rows *sql.Rows, dest interface{}) error {
-	var columns []string
-	var err error
-
-	dstv := reflect.ValueOf(dest)
-
-	if dstv.IsNil() || dstv.Kind() != reflect.Ptr {
+// fetchRow maps the next row coming from the *sql.Rows into the given
+// destination. The typer is used to wrap custom types to satisfy sql.Scanner.
+func fetchRow(typer adapter.Typer, rows cursor, dest interface{}) error {
+	destv := reflect.ValueOf(dest)
+	if destv.IsNil() || destv.Kind() != reflect.Ptr {
 		return errors.New("the destination must be an pointer and cannot be nil")
 	}
-
-	itemV := dstv.Elem()
-
-	if columns, err = rows.Columns(); err != nil {
-		return err
-	}
-
 	reset(dest)
 
-	next := rows.Next()
+	columns, err := rows.Columns()
+	if err != nil {
+		return errors.Wrap(err, "get columns")
+	}
 
-	if !next {
+	if !rows.Next() {
 		if err = rows.Err(); err != nil {
 			return err
 		}
 		return sql.ErrNoRows
 	}
 
-	itemT := itemV.Type()
-	item, err := fetchResult(typer, rows, itemT, columns)
+	elem := destv.Elem()
+	typ := elem.Type() // .Elem()
+	item, err := scanResult(typer, rows, typ, columns)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "scan result")
 	}
 
-	if itemT.Kind() == reflect.Ptr {
-		itemV.Set(item)
+	if typ.Kind() == reflect.Ptr {
+		elem.Set(item)
 	} else {
-		itemV.Set(reflect.Indirect(item))
+		elem.Set(reflect.Indirect(item))
 	}
-
+	// destv.Elem().Set(elem)
 	return nil
 }
