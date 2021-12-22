@@ -339,7 +339,7 @@ func TestSelector_As(t *testing.T) {
 
 	t.Run("no table", func(t *testing.T) {
 		assert.Panics(t, func() {
-			sql.SelectFrom().As("u").String()
+			_ = sql.SelectFrom().As("u").String()
 		})
 	})
 
