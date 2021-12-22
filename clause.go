@@ -209,8 +209,7 @@ type Iterator interface {
 // destination objects.
 type ResultMapper interface {
 	// All dumps all the results into the destination, and expects a pointer to the
-	// slice of maps or structs. The sql.ErrNoRows is returned when there is no
-	// result to scan.
+	// slice of maps or structs.
 	//
 	// The behaviour of One() is extended to each one of the results.
 	All(ctx context.Context, destSlice interface{}) error

@@ -26,6 +26,13 @@ type iterator struct {
 	err     error
 }
 
+func newIterator(adapter adapter.Adapter, cursor cursor) *iterator {
+	return &iterator{
+		adapter: adapter,
+		cursor:  cursor,
+	}
+}
+
 func (iter *iterator) setErr(err error) error {
 	iter.err = err
 	return iter.err
@@ -60,30 +67,19 @@ func (iter *iterator) All(ctx context.Context, dest interface{}) (err error) {
 	return nil
 }
 
-func (iter *iterator) next(dest interface{}) error {
-	if iter.cursor == nil {
-		return iter.setErr(sql.ErrNoRows)
-	}
-
-	if err := fetchRow(iter.adapter.Typer(), iter.cursor, dest); err != nil {
-		defer func() { _ = iter.Close() }()
-		return iter.setErr(err)
-	}
-	return nil
-}
-
 func (iter *iterator) One(_ context.Context, dest interface{}) (err error) {
 	if err = iter.Err(); err != nil {
 		return err
 	}
 	defer func() { _ = iter.Close() }()
 
-	if err = iter.next(dest); err != nil {
+	if err = fetchRow(iter.adapter.Typer(), iter.cursor, dest); err != nil {
 		return iter.setErr(err)
 	}
 	return nil
 }
 
+//go:generate go-mockgen --force unknwon.dev/norm/internal/sqlbuilder -i cursor -o mock_cursor_test.go
 type cursor interface {
 	io.Closer
 	Columns() ([]string, error)
@@ -187,12 +183,12 @@ func fetchRows(ctx context.Context, typer adapter.Typer, rows cursor, dest inter
 	}
 
 	elem := destv.Elem()
-	typ := elem.Type() // .Elem()
+	typ := elem.Type().Elem()
 	var item reflect.Value
 	for rows.Next() {
 		select {
-		case err = <-ctx.Done():
-			return err
+		case <-ctx.Done():
+			return ctx.Err()
 		default:
 		}
 
@@ -232,7 +228,7 @@ func fetchRow(typer adapter.Typer, rows cursor, dest interface{}) error {
 	}
 
 	elem := destv.Elem()
-	typ := elem.Type() // .Elem()
+	typ := elem.Type() // .Elem() todo
 	item, err := scanResult(typer, rows, typ, columns)
 	if err != nil {
 		return errors.Wrap(err, "scan result")
@@ -243,6 +239,6 @@ func fetchRow(typer adapter.Typer, rows cursor, dest interface{}) error {
 	} else {
 		elem.Set(reflect.Indirect(item))
 	}
-	// destv.Elem().Set(elem)
+	// destv.Elem().Set(elem) todo
 	return nil
 }
