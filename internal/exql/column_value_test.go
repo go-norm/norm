@@ -31,6 +31,11 @@ func TestColumnValue(t *testing.T) {
 			columnValue: ColumnValue("date", expr.ComparisonGreaterThan, Raw("NOW()")),
 			want:        `"date" > NOW()`,
 		},
+		{
+			name:        "compare func",
+			columnValue: ColumnValue(Raw(`'{"a":1,"b":2}'::json`), "->", Value("b")),
+			want:        `'{"a":1,"b":2}'::json -> 'b'`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

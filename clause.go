@@ -135,15 +135,15 @@ type Selector interface {
 	//   q.Join("employees").Using("department_id")
 	//
 	// The NATURAL JOIN is used when no conditions specified for the join.
-	Join(table ...interface{}) Selector
+	Join(table interface{}) Selector
 	// FullJoin is similar to Join() but is for FULL JOIN.
-	FullJoin(table ...interface{}) Selector
+	FullJoin(table interface{}) Selector
 	// CrossJoin is similar to Join() but is for CROSS JOIN.
-	CrossJoin(table ...interface{}) Selector
+	CrossJoin(table interface{}) Selector
 	// RightJoin is similar to Join() but is for RIGHT JOIN.
-	RightJoin(table ...interface{}) Selector
+	RightJoin(table interface{}) Selector
 	// LeftJoin is similar to Join() but is for LEFT JOIN.
-	LeftJoin(table ...interface{}) Selector
+	LeftJoin(table interface{}) Selector
 	// On constructs a ON clause.
 	//
 	// It can only be called after any type of join method and accepts the same

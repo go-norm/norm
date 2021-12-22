@@ -31,3 +31,12 @@ func TestCond_Empty(t *testing.T) {
 	c = Cond{"id": 1}
 	assert.False(t, c.Empty(), "should not be empty")
 }
+
+func TestCond_Constraints(t *testing.T) {
+	c := Cond{
+		"id":   1,
+		"name": "alice",
+	}
+	got := c.Constraints()
+	assert.Len(t, got, 2)
+}
