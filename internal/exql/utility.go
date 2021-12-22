@@ -83,3 +83,12 @@ func separateBySpace(s string) []string {
 }
 
 var InvisibleCharsRegexp = regexp.MustCompile(`[\s\r\n\t]+`)
+
+// StripWhitespace strips out all unnecessary whitespaces to make the string be
+// in the minimal length.
+func StripWhitespace(s string) string {
+	s = InvisibleCharsRegexp.ReplaceAllString(s, ` `)
+	s = strings.TrimSpace(s)
+	s = strings.NewReplacer("( ", "(", " )", ")").Replace(s)
+	return s
+}

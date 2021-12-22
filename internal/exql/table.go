@@ -25,7 +25,7 @@ type TableFragment struct {
 }
 
 // Table constructs a TableFragment with the given name, where the name can be a
-// string or RawFragment.
+// string or Fragment.
 //
 // When a string is passed as the name, the alias is recognized with a
 // case-insensitive "AS" or whitespace(s):
@@ -71,19 +71,24 @@ func (t *TableFragment) Compile(tmpl *Template) (compiled string, err error) {
 
 		if len(chunks) > 1 {
 			alias = trimString(chunks[1])
-			alias, err = tmpl.Compile(LayoutIdentifierQuote, Raw(alias))
-			if err != nil {
-				return "", errors.Wrapf(err, "compile LayoutIdentifierQuote with alias %q", alias)
-			}
 		}
 
-	case *RawFragment:
-		compiled = v.String()
+	case Fragment:
+		compiled, err = v.Compile(tmpl)
+		if err != nil {
+			return "", errors.Wrap(err, "compile fragment")
+		}
+
 	default:
 		return "", errors.Errorf("unsupported column name type %T", v)
 	}
 
 	if alias != "" {
+		alias, err = tmpl.Compile(LayoutIdentifierQuote, Raw(alias))
+		if err != nil {
+			return "", errors.Wrapf(err, "compile LayoutIdentifierQuote with alias %q", alias)
+		}
+
 		data := map[string]string{
 			"Name":  compiled,
 			"Alias": alias,

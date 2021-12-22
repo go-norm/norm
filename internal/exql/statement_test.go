@@ -80,7 +80,7 @@ func TestStatement(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := test.statement.Compile(tmpl)
 			require.NoError(t, err)
-			assert.Equal(t, test.want, stripWhitespace(got))
+			assert.Equal(t, test.want, StripWhitespace(got))
 		})
 	}
 
@@ -134,7 +134,7 @@ func TestStatement_Count(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := test.statement.Compile(tmpl)
 			require.NoError(t, err)
-			assert.Equal(t, test.want, stripWhitespace(got))
+			assert.Equal(t, test.want, StripWhitespace(got))
 		})
 	}
 }
@@ -158,7 +158,7 @@ func TestStatement_Insert(t *testing.T) {
 				),
 				Values: ValuesGroup(Value("alice"), Value("alice@example.com"), Raw("NOW()")),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 INSERT INTO "users"
 	("name", "email", "created_at")
 VALUES
@@ -180,7 +180,7 @@ VALUES
 					ValuesGroup(Value("bob"), Value("bob@example.com"), Raw("NOW()")),
 				),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 INSERT INTO "users"
 	("name", "email", "created_at")
 VALUES
@@ -201,7 +201,7 @@ VALUES
 				Values:    ValuesGroup(Value("alice"), Value("alice@example.com"), Raw("NOW()")),
 				Returning: Returning(Column("id")),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 INSERT INTO "users"
 	("name", "email", "created_at")
 VALUES
@@ -214,7 +214,7 @@ RETURNING "id"
 		t.Run(test.name, func(t *testing.T) {
 			got, err := test.statement.Compile(tmpl)
 			require.NoError(t, err)
-			assert.Equal(t, test.want, stripWhitespace(got))
+			assert.Equal(t, test.want, StripWhitespace(got))
 		})
 	}
 }
@@ -262,7 +262,7 @@ func TestStatement_Select(t *testing.T) {
 					Raw("deleted_at IS NULL"),
 				),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 SELECT
 	"name",
 	"email",
@@ -289,7 +289,7 @@ WHERE (
 					Column("sid"),
 				),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 SELECT
 	"users".*,
 	"c"."id",
@@ -313,7 +313,7 @@ FROM
 					On(ColumnValue("users.id", expr.ComparisonEqual, Column("user_emails.id"))),
 				),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 SELECT
 	"user_emails"."email"
 FROM "users"
@@ -332,7 +332,7 @@ JOIN "user_emails" ON ("users"."id" = "user_emails"."id")
 					Using(Column("user_id")),
 				),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 SELECT
 	"user_emails"."email"
 FROM "users"
@@ -347,7 +347,7 @@ JOIN "user_emails" USING ("user_id")
 				Columns: Column("user_emails.email"),
 				Joins:   Join("user_emails"),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 SELECT
 	"user_emails"."email"
 FROM "users"
@@ -376,7 +376,7 @@ NATURAL JOIN "user_emails"
 					),
 				),
 			},
-			want: stripWhitespace(`
+			want: StripWhitespace(`
 SELECT
 	"user_emails"."email",
 	"user_invites"."id"
@@ -481,7 +481,7 @@ JOIN "user_invites" ON ("users"."id" = "user_invites"."id")
 		t.Run(test.name, func(t *testing.T) {
 			got, err := test.statement.Compile(tmpl)
 			require.NoError(t, err)
-			assert.Equal(t, test.want, stripWhitespace(got))
+			assert.Equal(t, test.want, StripWhitespace(got))
 		})
 	}
 }
@@ -500,7 +500,7 @@ func TestStatement_Amend(t *testing.T) {
 	require.NoError(t, err)
 
 	want := `SELECT "name" FROM "users" FOR UPDATE`
-	assert.Equal(t, want, stripWhitespace(got))
+	assert.Equal(t, want, StripWhitespace(got))
 }
 
 func TestRawSQL(t *testing.T) {
@@ -509,5 +509,5 @@ func TestRawSQL(t *testing.T) {
 
 	got, err := s.Compile(defaultTemplate(t))
 	require.NoError(t, err)
-	assert.Equal(t, sql, stripWhitespace(got))
+	assert.Equal(t, sql, StripWhitespace(got))
 }

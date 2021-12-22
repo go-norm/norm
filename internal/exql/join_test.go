@@ -64,7 +64,7 @@ func TestJoin(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := test.join.Compile(tmpl)
 			require.NoError(t, err)
-			assert.Equal(t, test.want, stripWhitespace(got))
+			assert.Equal(t, test.want, StripWhitespace(got))
 		})
 	}
 }
@@ -83,17 +83,17 @@ func TestJoinOn(t *testing.T) {
 	got, err := join.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := stripWhitespace(`
+	want := StripWhitespace(`
 JOIN "countries" AS "c" ON (
 		"p"."country_id" = "a"."id"
 	AND "p"."country_code" = "a"."code"
 )`)
-	assert.Equal(t, want, stripWhitespace(got))
+	assert.Equal(t, want, StripWhitespace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
 		got, err := join.Compile(tmpl)
 		assert.NoError(t, err)
-		assert.Equal(t, want, stripWhitespace(got))
+		assert.Equal(t, want, StripWhitespace(got))
 	})
 }
 
@@ -112,12 +112,12 @@ func TestJoinUsing(t *testing.T) {
 	require.NoError(t, err)
 
 	want := `JOIN "countries" AS "c" USING ("p"."country_id", "p"."country_code")`
-	assert.Equal(t, want, stripWhitespace(got))
+	assert.Equal(t, want, StripWhitespace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
 		got, err := join.Compile(tmpl)
 		assert.NoError(t, err)
-		assert.Equal(t, want, stripWhitespace(got))
+		assert.Equal(t, want, StripWhitespace(got))
 	})
 }
 
@@ -150,7 +150,7 @@ func TestOn(t *testing.T) {
 	got, err := on.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := stripWhitespace(`
+	want := StripWhitespace(`
 ON (
 		(
 				"id" > 8
@@ -218,11 +218,11 @@ func TestJoins(t *testing.T) {
 	require.NoError(t, err)
 
 	want := `NATURAL JOIN "users" FULL JOIN "users" USING ("users"."id")`
-	assert.Equal(t, want, stripWhitespace(got))
+	assert.Equal(t, want, StripWhitespace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
 		got, err := js.Compile(tmpl)
 		assert.NoError(t, err)
-		assert.Equal(t, want, stripWhitespace(got))
+		assert.Equal(t, want, StripWhitespace(got))
 	})
 }

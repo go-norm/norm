@@ -49,14 +49,18 @@ type Selector interface {
 	//
 	// or using the shortcut:
 	//
-	//    q.Columns(...).From("users u").Where("u.name = ?", ...)
+	//   q.Columns(...).From("users u").Where("u.name = ?", ...)
 	From(tables ...interface{}) Selector
 	// Distinct constructs a DISTINCT clause with given columns.
 	//
-	// It is used to ask the database to return only values that are different:
+	// If no column is given, the DISTINCT applies to all columns:
 	//
-	//    q.From(...).Distinct("name")
-	Distinct(columns ...interface{}) Selector
+	//   => SELECT "name", DISTINCT("email", "gender")
+	//   q.Select("name").Distinct("email", "gender")
+	//
+	//   => SELECT DISTINCT "name", "email"
+	//   q.Select("name").Distinct().Columns("email")
+	Distinct(columns ...string) Selector
 	// As constructs an alias for the table.
 	//
 	// It can only be called after From() which defines the table:

@@ -6,6 +6,7 @@
 package sqlbuilder
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"reflect"
 	"strings"
@@ -43,11 +44,10 @@ func toArguments(v interface{}) (args []interface{}, isSlice bool) {
 	return args, true
 }
 
-// expandPlaceholder expands the placeholder string and wrapped list of
-// arguments from the given argument. It returns an empty string for the
-// placeholder and a slice containing the original argument if expansion is not
-// possible.
-func expandPlaceholder(arg interface{}) (placeholder string, args []interface{}, err error) {
+// expandArgument expands the placeholder string and wrapped list of arguments
+// from the given argument. It returns an empty string for the placeholder and a
+// slice containing the original argument if expansion is not possible.
+func expandArgument(arg interface{}) (placeholder string, args []interface{}, err error) {
 	vals, isSlice := toArguments(arg)
 	if isSlice {
 		if len(vals) == 0 {
@@ -62,13 +62,6 @@ func expandPlaceholder(arg interface{}) (placeholder string, args []interface{},
 	}
 
 	switch v := vals[0].(type) {
-	case *expr.RawExpr:
-		placeholder, args, err = ExpandQuery(v.Raw(), v.Arguments())
-		if err != nil {
-			return "", nil, errors.Wrap(err, "expand query for *expr.RawExpr")
-		}
-		return placeholder, args, nil
-
 	case compilable:
 		q, err := v.Compile()
 		if err != nil {
@@ -76,6 +69,26 @@ func expandPlaceholder(arg interface{}) (placeholder string, args []interface{},
 		}
 		placeholder = "(" + q + ")"
 		return placeholder, v.Arguments(), nil
+
+	case *expr.FuncExpr:
+		fnName, fnArgs := v.Name(), v.Arguments()
+		if len(fnArgs) == 0 {
+			fnName = fnName + "()"
+		} else {
+			fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
+		}
+		placeholder, args, err = ExpandQuery(fnName, fnArgs)
+		if err != nil {
+			return "", nil, errors.Wrap(err, "expand query for *expr.FuncExpr")
+		}
+		return placeholder, args, nil
+
+	case *expr.RawExpr:
+		placeholder, args, err = ExpandQuery(v.Raw(), v.Arguments())
+		if err != nil {
+			return "", nil, errors.Wrap(err, "expand query for *expr.RawExpr")
+		}
+		return placeholder, args, nil
 	}
 	return "", vals, nil
 }
@@ -83,37 +96,26 @@ func expandPlaceholder(arg interface{}) (placeholder string, args []interface{},
 // ExpandQuery expands the query with given arguments with necessary
 // placeholders.
 func ExpandQuery(query string, args []interface{}) (string, []interface{}, error) {
-	argn := 0
+	var buf bytes.Buffer
 	argx := make([]interface{}, 0, len(args))
-	for i := 0; i < len(query); i++ {
-		if query[i] != '?' {
+	for i := range query {
+		if query[i] != '?' || len(args) == 0 {
+			buf.WriteByte(query[i])
 			continue
 		}
-		if len(args) <= argn {
-			break
-		}
 
-		k, vals, err := expandPlaceholder(args[argn])
+		q, qArgs, err := expandArgument(args[0])
 		if err != nil {
-			return "", nil, errors.Wrap(err, "expand placeholder")
+			return "", nil, errors.Wrap(err, "expand argument")
 		}
 
-		k, vals, err = ExpandQuery(k, vals)
-		if err != nil {
-			return "", nil, errors.Wrap(err, "expand query")
+		if q != "" {
+			buf.WriteString(q)
+		} else {
+			buf.WriteByte(query[i])
 		}
-
-		if k != "" {
-			query = query[:i] + k + query[i+1:]
-			i += len(k) - 1
-		}
-		if len(vals) > 0 {
-			argx = append(argx, vals...)
-		}
-		argn++
+		argx = append(argx, qArgs...)
+		args = args[1:]
 	}
-	if len(argx) < len(args) {
-		argx = append(argx, args[argn:]...)
-	}
-	return query, argx, nil
+	return buf.String(), argx, nil
 }

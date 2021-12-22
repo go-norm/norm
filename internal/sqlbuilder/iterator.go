@@ -222,7 +222,7 @@ func fetchRow(typer adapter.Typer, rows cursor, dest interface{}) error {
 	}
 
 	elem := destv.Elem()
-	typ := elem.Type() // .Elem() todo
+	typ := elem.Type()
 	item, err := scanResult(typer, rows, typ, columns)
 	if err != nil {
 		return errors.Wrap(err, "scan result")
@@ -233,6 +233,5 @@ func fetchRow(typer adapter.Typer, rows cursor, dest interface{}) error {
 	} else {
 		elem.Set(reflect.Indirect(item))
 	}
-	// destv.Elem().Set(elem) todo
 	return nil
 }

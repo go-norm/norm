@@ -285,7 +285,8 @@ func (e *OrExpr) Or(ors ...LogicalExpr) *OrExpr {
 }
 
 // Or joins given expressions by logical disjunction (LogicalOr). Expressions
-// can be represented by mixes of `expr.Cond{}`, `expr.Or()` and `expr.And()`.
+// can be represented by mixes of `expr.Cond{}`, `expr.Or()`, `expr.And()` and
+// `expr.Raw()`.
 //
 // Example:
 //
