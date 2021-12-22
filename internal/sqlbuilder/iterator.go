@@ -111,14 +111,8 @@ func scanResult(typer adapter.Typer, rows cursor, typ reflect.Type, columns []st
 		result = reflect.MakeMap(typ)
 	case reflect.Struct:
 		result = reflect.New(typ)
-	case reflect.Ptr:
-		elem := typ.Elem()
-		if elem.Kind() != reflect.Struct {
-			return reflect.Value{}, errors.New("the type must be a map or struct or a pointer to a map or struct")
-		}
-		result = reflect.New(elem)
 	default:
-		return reflect.Value{}, errors.New("the type must be a map or struct or a pointer to a map or struct")
+		return reflect.Value{}, errors.New("the type must be a map or struct")
 	}
 
 	switch typ.Kind() {

@@ -496,3 +496,265 @@ func (c AdapterTyperFuncCall) Args() []interface{} {
 func (c AdapterTyperFuncCall) Results() []interface{} {
 	return []interface{}{c.Result0}
 }
+
+// MockTyper is a mock implementation of the Typer interface (from the
+// package unknwon.dev/norm/adapter) used for unit testing.
+type MockTyper struct {
+	// ScannerFunc is an instance of a mock function object controlling the
+	// behavior of the method Scanner.
+	ScannerFunc *TyperScannerFunc
+	// ValuerFunc is an instance of a mock function object controlling the
+	// behavior of the method Valuer.
+	ValuerFunc *TyperValuerFunc
+}
+
+// NewMockTyper creates a new mock of the Typer interface. All methods
+// return zero values for all results, unless overwritten.
+func NewMockTyper() *MockTyper {
+	return &MockTyper{
+		ScannerFunc: &TyperScannerFunc{
+			defaultHook: func(interface{}) interface{} {
+				return nil
+			},
+		},
+		ValuerFunc: &TyperValuerFunc{
+			defaultHook: func(interface{}) interface{} {
+				return nil
+			},
+		},
+	}
+}
+
+// NewStrictMockTyper creates a new mock of the Typer interface. All methods
+// panic on invocation, unless overwritten.
+func NewStrictMockTyper() *MockTyper {
+	return &MockTyper{
+		ScannerFunc: &TyperScannerFunc{
+			defaultHook: func(interface{}) interface{} {
+				panic("unexpected invocation of MockTyper.Scanner")
+			},
+		},
+		ValuerFunc: &TyperValuerFunc{
+			defaultHook: func(interface{}) interface{} {
+				panic("unexpected invocation of MockTyper.Valuer")
+			},
+		},
+	}
+}
+
+// NewMockTyperFrom creates a new mock of the MockTyper interface. All
+// methods delegate to the given implementation, unless overwritten.
+func NewMockTyperFrom(i adapter.Typer) *MockTyper {
+	return &MockTyper{
+		ScannerFunc: &TyperScannerFunc{
+			defaultHook: i.Scanner,
+		},
+		ValuerFunc: &TyperValuerFunc{
+			defaultHook: i.Valuer,
+		},
+	}
+}
+
+// TyperScannerFunc describes the behavior when the Scanner method of the
+// parent MockTyper instance is invoked.
+type TyperScannerFunc struct {
+	defaultHook func(interface{}) interface{}
+	hooks       []func(interface{}) interface{}
+	history     []TyperScannerFuncCall
+	mutex       sync.Mutex
+}
+
+// Scanner delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockTyper) Scanner(v0 interface{}) interface{} {
+	r0 := m.ScannerFunc.nextHook()(v0)
+	m.ScannerFunc.appendCall(TyperScannerFuncCall{v0, r0})
+	return r0
+}
+
+// SetDefaultHook sets function that is called when the Scanner method of
+// the parent MockTyper instance is invoked and the hook queue is empty.
+func (f *TyperScannerFunc) SetDefaultHook(hook func(interface{}) interface{}) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Scanner method of the parent MockTyper instance invokes the hook at the
+// front of the queue and discards it. After the queue is empty, the default
+// hook function is invoked for any future action.
+func (f *TyperScannerFunc) PushHook(hook func(interface{}) interface{}) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *TyperScannerFunc) SetDefaultReturn(r0 interface{}) {
+	f.SetDefaultHook(func(interface{}) interface{} {
+		return r0
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *TyperScannerFunc) PushReturn(r0 interface{}) {
+	f.PushHook(func(interface{}) interface{} {
+		return r0
+	})
+}
+
+func (f *TyperScannerFunc) nextHook() func(interface{}) interface{} {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *TyperScannerFunc) appendCall(r0 TyperScannerFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of TyperScannerFuncCall objects describing the
+// invocations of this function.
+func (f *TyperScannerFunc) History() []TyperScannerFuncCall {
+	f.mutex.Lock()
+	history := make([]TyperScannerFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// TyperScannerFuncCall is an object that describes an invocation of method
+// Scanner on an instance of MockTyper.
+type TyperScannerFuncCall struct {
+	// Arg0 is the value of the 1st argument passed to this method
+	// invocation.
+	Arg0 interface{}
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 interface{}
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation.
+func (c TyperScannerFuncCall) Args() []interface{} {
+	return []interface{}{c.Arg0}
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c TyperScannerFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0}
+}
+
+// TyperValuerFunc describes the behavior when the Valuer method of the
+// parent MockTyper instance is invoked.
+type TyperValuerFunc struct {
+	defaultHook func(interface{}) interface{}
+	hooks       []func(interface{}) interface{}
+	history     []TyperValuerFuncCall
+	mutex       sync.Mutex
+}
+
+// Valuer delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockTyper) Valuer(v0 interface{}) interface{} {
+	r0 := m.ValuerFunc.nextHook()(v0)
+	m.ValuerFunc.appendCall(TyperValuerFuncCall{v0, r0})
+	return r0
+}
+
+// SetDefaultHook sets function that is called when the Valuer method of the
+// parent MockTyper instance is invoked and the hook queue is empty.
+func (f *TyperValuerFunc) SetDefaultHook(hook func(interface{}) interface{}) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Valuer method of the parent MockTyper instance invokes the hook at the
+// front of the queue and discards it. After the queue is empty, the default
+// hook function is invoked for any future action.
+func (f *TyperValuerFunc) PushHook(hook func(interface{}) interface{}) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *TyperValuerFunc) SetDefaultReturn(r0 interface{}) {
+	f.SetDefaultHook(func(interface{}) interface{} {
+		return r0
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *TyperValuerFunc) PushReturn(r0 interface{}) {
+	f.PushHook(func(interface{}) interface{} {
+		return r0
+	})
+}
+
+func (f *TyperValuerFunc) nextHook() func(interface{}) interface{} {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *TyperValuerFunc) appendCall(r0 TyperValuerFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of TyperValuerFuncCall objects describing the
+// invocations of this function.
+func (f *TyperValuerFunc) History() []TyperValuerFuncCall {
+	f.mutex.Lock()
+	history := make([]TyperValuerFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// TyperValuerFuncCall is an object that describes an invocation of method
+// Valuer on an instance of MockTyper.
+type TyperValuerFuncCall struct {
+	// Arg0 is the value of the 1st argument passed to this method
+	// invocation.
+	Arg0 interface{}
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 interface{}
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation.
+func (c TyperValuerFuncCall) Args() []interface{} {
+	return []interface{}{c.Arg0}
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c TyperValuerFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0}
+}

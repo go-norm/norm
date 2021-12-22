@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go-mockgen --force unknwon.dev/norm/adapter -i Adapter -o mock_adapter_test.go
+//go:generate go-mockgen --force unknwon.dev/norm/adapter -i Adapter -i Typer -o mock_adapter_test.go
 func TestIterator_All(t *testing.T) {
 	ctx := context.Background()
 
@@ -48,22 +48,43 @@ func TestIterator_All(t *testing.T) {
 		assert.EqualError(t, err, "context deadline exceeded")
 	})
 
-	// Mock two results
-	cursor := NewMockCursor()
-	cursor.ColumnsFunc.SetDefaultReturn([]string{"name", "email"}, nil)
-	cursor.NextFunc.PushReturn(true)
-	cursor.NextFunc.PushReturn(true)
-	cursor.ScanFunc.PushHook(func(dest ...interface{}) error {
-		assert.Len(t, dest, 2)
-		return nil
+	t.Run("map", func(t *testing.T) {
+		// Mock two results
+		cursor := NewMockCursor()
+		cursor.ColumnsFunc.SetDefaultReturn([]string{"name", "email"}, nil)
+		cursor.NextFunc.PushReturn(true)
+		cursor.NextFunc.PushReturn(true)
+		cursor.ScanFunc.PushHook(func(dest ...interface{}) error {
+			assert.Len(t, dest, 2)
+			return nil
+		})
+
+		iter := newIterator(NewMockAdapter(), cursor)
+
+		dest := make([]map[string]interface{}, 0)
+		err := iter.All(ctx, &dest)
+		require.NoError(t, err)
+		mockrequire.Called(t, cursor.ScanFunc)
 	})
 
-	iter := newIterator(NewMockAdapter(), cursor)
+	t.Run("struct", func(t *testing.T) {
+		// Mock two results
+		cursor := NewMockCursor()
+		cursor.ColumnsFunc.SetDefaultReturn([]string{"name", "email"}, nil)
+		cursor.NextFunc.PushReturn(true)
+		cursor.NextFunc.PushReturn(true)
+		cursor.ScanFunc.PushHook(func(dest ...interface{}) error {
+			assert.Len(t, dest, 2)
+			return nil
+		})
 
-	dest := make([]map[string]interface{}, 0)
-	err := iter.All(ctx, &dest)
-	require.NoError(t, err)
-	mockrequire.Called(t, cursor.ScanFunc)
+		iter := newIterator(NewMockAdapter(), cursor)
+
+		dest := make([]struct{}, 0)
+		err := iter.All(ctx, &dest)
+		require.NoError(t, err)
+		mockrequire.Called(t, cursor.ScanFunc)
+	})
 }
 
 func TestIterator_One(t *testing.T) {
@@ -87,18 +108,42 @@ func TestIterator_One(t *testing.T) {
 		assert.EqualError(t, err, sql.ErrNoRows.Error())
 	})
 
-	cursor := NewMockCursor()
-	cursor.ColumnsFunc.SetDefaultReturn([]string{"name", "email"}, nil)
-	cursor.NextFunc.PushReturn(true)
-	cursor.ScanFunc.PushHook(func(dest ...interface{}) error {
-		assert.Len(t, dest, 2)
-		return nil
+	t.Run("map", func(t *testing.T) {
+		cursor := NewMockCursor()
+		cursor.ColumnsFunc.SetDefaultReturn([]string{"name", "email"}, nil)
+		cursor.NextFunc.PushReturn(true)
+		cursor.ScanFunc.PushHook(func(dest ...interface{}) error {
+			assert.Len(t, dest, 2)
+			return nil
+		})
+
+		iter := newIterator(NewMockAdapter(), cursor)
+
+		dest := make(map[string]interface{})
+		err := iter.One(ctx, &dest)
+		require.NoError(t, err)
+		mockrequire.Called(t, cursor.ScanFunc)
 	})
 
-	iter := newIterator(NewMockAdapter(), cursor)
+	t.Run("struct", func(t *testing.T) {
+		adapter := NewMockAdapter()
+		adapter.TyperFunc.SetDefaultReturn(NewMockTyper())
 
-	dest := make(map[string]interface{})
-	err := iter.One(ctx, &dest)
-	require.NoError(t, err)
-	mockrequire.Called(t, cursor.ScanFunc)
+		cursor := NewMockCursor()
+		cursor.ColumnsFunc.SetDefaultReturn([]string{"name", "email"}, nil)
+		cursor.NextFunc.PushReturn(true)
+		cursor.ScanFunc.PushHook(func(dest ...interface{}) error {
+			assert.Len(t, dest, 2)
+			return nil
+		})
+
+		iter := newIterator(adapter, cursor)
+
+		dest := new(struct {
+			Name string `db:"name"`
+		})
+		err := iter.One(ctx, dest)
+		require.NoError(t, err)
+		mockrequire.Called(t, cursor.ScanFunc)
+	})
 }
