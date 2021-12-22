@@ -23,14 +23,17 @@ var _ Fragment = (*ColumnValueFragment)(nil)
 type ColumnValueFragment struct {
 	hash     hash
 	Column   *ColumnFragment
-	Operator expr.ComparisonOperator
+	Operator interface{}
 	Value    Fragment
 }
 
 // ColumnValue constructs a ColumnValueFragment with the given column, value,
-// and their comparison operator, where the column name can be a string or
-// RawFragment.
-func ColumnValue(column interface{}, operator expr.ComparisonOperator, value Fragment) *ColumnValueFragment {
+// and their comparison operator.
+//
+// Arguments:
+//   - The column name can be a string or RawFragment.
+//   - The operator can be a string or expr.ComparisonOperator.
+func ColumnValue(column interface{}, operator interface{}, value Fragment) *ColumnValueFragment {
 	return &ColumnValueFragment{
 		Column:   Column(column),
 		Operator: operator,
@@ -52,9 +55,19 @@ func (cv *ColumnValueFragment) Compile(t *Template) (string, error) {
 		return "", errors.Wrapf(err, "compile column")
 	}
 
+	var operator string
+	switch v := cv.Operator.(type) {
+	case string:
+		operator = v
+	case expr.ComparisonOperator:
+		operator = t.Operator(v)
+	default:
+		return "", errors.Errorf("unsupported operator type %T", v)
+	}
+
 	data := map[string]string{
 		"Column":   column,
-		"Operator": t.operators[cv.Operator],
+		"Operator": operator,
 	}
 	if cv.Value != nil {
 		value, err := cv.Value.Compile(t)

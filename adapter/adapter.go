@@ -31,6 +31,8 @@ type Adapter interface {
 	Executor() Executor
 	// Typer returns the typer of the adapter.
 	Typer() Typer
+	// FormatSQL returns formatted SQL from the given string.
+	FormatSQL(sql string) string
 }
 
 // Executor compiles query statements into actual SQL queries and executes them

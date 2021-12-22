@@ -122,7 +122,7 @@ func (ts *TablesFragment) Hash() string {
 }
 
 func (ts *TablesFragment) Compile(t *Template) (compiled string, err error) {
-	if len(ts.Tables) == 0 {
+	if ts.Empty() {
 		return "", nil
 	}
 
@@ -141,4 +141,10 @@ func (ts *TablesFragment) Compile(t *Template) (compiled string, err error) {
 	compiled = strings.TrimSpace(strings.Join(out, t.layouts[LayoutIdentifierSeparator]))
 	t.Set(ts, compiled)
 	return compiled, nil
+}
+
+var _ emptiable = (*TablesFragment)(nil)
+
+func (ts *TablesFragment) Empty() bool {
+	return ts == nil || len(ts.Tables) == 0
 }
