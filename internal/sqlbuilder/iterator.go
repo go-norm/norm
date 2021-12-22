@@ -25,6 +25,28 @@ type iterator struct {
 	err     error
 }
 
+func (iter *iterator) setErr(err error) error {
+	iter.err = err
+	return iter.err
+}
+
+func (iter *iterator) Err() (err error) {
+	return iter.err
+}
+
+func (iter *iterator) Close() error {
+	if iter.cursor == nil {
+		return nil
+	}
+	defer func() { iter.cursor = nil }()
+
+	err := iter.cursor.Close()
+	if err != nil {
+		return err
+	}
+	return iter.cursor.Err()
+}
+
 func (iter *iterator) All(ctx context.Context, dest interface{}) (err error) {
 	if err = iter.Err(); err != nil {
 		return err
@@ -59,6 +81,45 @@ func (iter *iterator) One(_ context.Context, dest interface{}) (err error) {
 		return iter.setErr(err)
 	}
 	return nil
+}
+
+// fetchRows maps all the rows coming from the *sql.Rows into the given
+// destination. The typer is used to wrap custom types to satisfy sql.Scanner.
+func fetchRows(ctx context.Context, typer adapter.Typer, rows *sql.Rows, dest interface{}) error {
+	defer func() { _ = rows.Close() }()
+
+	destv := reflect.ValueOf(dest)
+	if destv.IsNil() || destv.Kind() != reflect.Ptr {
+		return errors.New("the destination must be an pointer and cannot be nil")
+	} else if destv.Elem().Kind() != reflect.Slice {
+		return errors.New("the destination must be a slice")
+	}
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return errors.Wrap(err, "get columns")
+	}
+
+	slicev := destv.Elem()
+	itemT := slicev.Type().Elem()
+
+	reset(dest)
+
+	for rows.Next() {
+		item, err := fetchResult(typer, rows, itemT, columns)
+		if err != nil {
+			return err
+		}
+		if itemT.Kind() == reflect.Ptr {
+			slicev = reflect.Append(slicev, item)
+		} else {
+			slicev = reflect.Append(slicev, reflect.Indirect(item))
+		}
+	}
+
+	destv.Elem().Set(slicev)
+
+	return rows.Err()
 }
 
 // todo
@@ -154,94 +215,16 @@ func fetchResult(typer adapter.Typer, rows *sql.Rows, itemT reflect.Type, column
 	return item, nil
 }
 
-var (
-	ErrExpectingPointer        = errors.New("argument must be an address")
-	ErrExpectingSlicePointer   = errors.New("argument must be a slice address")
-	ErrExpectingSliceMapStruct = errors.New("argument must be a slice address of maps or structs")
-)
-
-// fetchRows receives a *sql.Rows value and tries to map all the rows into a
-// slice of structs given by the pointer `dst`.
-func fetchRows(ctx context.Context, typer adapter.Typer, rows *sql.Rows, dest interface{}) error {
-	defer func() { _ = rows.Close() }()
-
-	// Destination.
-	destv := reflect.ValueOf(dest)
-
-	if destv.IsNil() || destv.Kind() != reflect.Ptr {
-		return ErrExpectingPointer
-	}
-
-	if destv.Elem().Kind() != reflect.Slice {
-		return ErrExpectingSlicePointer
-	}
-
-	if destv.Kind() != reflect.Ptr || destv.Elem().Kind() != reflect.Slice || destv.IsNil() {
-		return ErrExpectingSliceMapStruct
-	}
-
-	var err error
-	var columns []string
-	if columns, err = rows.Columns(); err != nil {
-		return err
-	}
-
-	slicev := destv.Elem()
-	itemT := slicev.Type().Elem()
-
-	reset(dest)
-
-	for rows.Next() {
-		item, err := fetchResult(typer, rows, itemT, columns)
-		if err != nil {
-			return err
-		}
-		if itemT.Kind() == reflect.Ptr {
-			slicev = reflect.Append(slicev, item)
-		} else {
-			slicev = reflect.Append(slicev, reflect.Indirect(item))
-		}
-	}
-
-	destv.Elem().Set(slicev)
-
-	return rows.Err()
-}
-
-func (iter *iterator) setErr(err error) error {
-	iter.err = err
-	return iter.err
-}
-
-func (iter *iterator) Err() (err error) {
-	return iter.err
-}
-
-func (iter *iterator) Close() error {
-	if iter.cursor == nil {
-		return nil
-	}
-	defer func() {
-		iter.cursor = nil
-	}()
-
-	err := iter.cursor.Close()
-	if err != nil {
-		return err
-	}
-	return iter.cursor.Err()
-}
-
 // fetchRow receives a *sql.Rows value and tries to map all the rows into a
 // single struct given by the pointer `dst`.
-func fetchRow(typer adapter.Typer, rows *sql.Rows, dst interface{}) error {
+func fetchRow(typer adapter.Typer, rows *sql.Rows, dest interface{}) error {
 	var columns []string
 	var err error
 
-	dstv := reflect.ValueOf(dst)
+	dstv := reflect.ValueOf(dest)
 
 	if dstv.IsNil() || dstv.Kind() != reflect.Ptr {
-		return ErrExpectingPointer
+		return errors.New("the destination must be an pointer and cannot be nil")
 	}
 
 	itemV := dstv.Elem()
@@ -250,7 +233,7 @@ func fetchRow(typer adapter.Typer, rows *sql.Rows, dst interface{}) error {
 		return err
 	}
 
-	reset(dst)
+	reset(dest)
 
 	next := rows.Next()
 
@@ -258,7 +241,7 @@ func fetchRow(typer adapter.Typer, rows *sql.Rows, dst interface{}) error {
 		if err = rows.Err(); err != nil {
 			return err
 		}
-		return ErrNoMoreRows
+		return sql.ErrNoRows
 	}
 
 	itemT := itemV.Type()
