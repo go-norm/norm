@@ -187,6 +187,7 @@ func fetchRows(ctx context.Context, typer adapter.Typer, rows adapter.Rows, dest
 			elem = reflect.Append(elem, reflect.Indirect(item))
 		}
 	}
+	destv.Elem().Set(elem)
 	return rows.Err()
 }
 
