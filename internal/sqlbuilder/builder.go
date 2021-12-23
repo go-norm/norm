@@ -16,6 +16,7 @@ type sqlBuilder struct {
 	*exql.Template
 }
 
+// New returns a new SQL query builder with given adapter and template.
 func New(adapter adapter.Adapter, t *exql.Template) norm.SQL {
 	return &sqlBuilder{
 		Adapter:  adapter,
