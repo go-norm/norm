@@ -198,7 +198,11 @@ DELETE
 INSERT INTO {{.Table | compile}}
   {{if .Columns }}({{.Columns | compile}}){{end}}
 VALUES
-  {{.Values | compile}}
+  {{if defined .Values}}
+    {{.Values | compile}}
+  {{else}}
+    (DEFAULT)
+  {{end}}
 {{.Returning | compile}}
 `
 		defaultJoin = `
@@ -343,8 +347,8 @@ SET {{.ColumnValues | compile}}
 			expr.ComparisonLike:    "LIKE",
 			expr.ComparisonNotLike: "NOT LIKE",
 
-			expr.ComparisonRegexp:    "REGEXP",
-			expr.ComparisonNotRegexp: "NOT REGEXP",
+			expr.ComparisonRegexp:    "~",
+			expr.ComparisonNotRegexp: "!~",
 		},
 	)
 	if err != nil {

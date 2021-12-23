@@ -88,7 +88,7 @@ func (vg *ValuesGroupFragment) Hash() string {
 }
 
 func (vg *ValuesGroupFragment) Compile(t *Template) (compiled string, err error) {
-	if len(vg.Values) == 0 {
+	if vg.Empty() {
 		return "", nil
 	}
 
@@ -111,6 +111,12 @@ func (vg *ValuesGroupFragment) Compile(t *Template) (compiled string, err error)
 
 	t.Set(vg, compiled)
 	return compiled, nil
+}
+
+var _ emptiable = (*ValuesGroupFragment)(nil)
+
+func (vg *ValuesGroupFragment) Empty() bool {
+	return vg == nil || len(vg.Values) == 0
 }
 
 var _ Fragment = (*ValuesGroupsFragment)(nil)
@@ -138,7 +144,7 @@ func (vgs *ValuesGroupsFragment) Hash() string {
 }
 
 func (vgs *ValuesGroupsFragment) Compile(t *Template) (compiled string, err error) {
-	if len(vgs.Groups) == 0 {
+	if vgs.Empty() {
 		return "", nil
 	}
 
@@ -157,4 +163,10 @@ func (vgs *ValuesGroupsFragment) Compile(t *Template) (compiled string, err erro
 	compiled = strings.TrimSpace(strings.Join(out, t.layouts[LayoutValueSeparator]))
 	t.Set(vgs, compiled)
 	return compiled, nil
+}
+
+var _ emptiable = (*ValuesGroupsFragment)(nil)
+
+func (vgs *ValuesGroupsFragment) Empty() bool {
+	return vgs == nil || len(vgs.Groups) == 0
 }
