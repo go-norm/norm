@@ -454,11 +454,12 @@ func TestSelector_OrderBy(t *testing.T) {
 	sel := sql.SelectFrom().OrderBy().
 		OrderBy(
 			expr.Func("version"),
+			expr.Func("AVG", 9.6),
 			expr.Raw("NOW()"),
 			"users.name",
 		)
 
-	want := `SELECT * ORDER BY version(), NOW(), "users"."name" ASC`
+	want := `SELECT * ORDER BY version(), AVG(?), NOW(), "users"."name" ASC`
 	assert.Equal(t, want, sel.String())
 }
 

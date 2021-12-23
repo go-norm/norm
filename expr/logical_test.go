@@ -57,6 +57,11 @@ func TestRaw(t *testing.T) {
 	})
 }
 
+func TestBool(t *testing.T) {
+	assert.Equal(t, "TRUE", Bool(true).String())
+	assert.Equal(t, "FALSE", Bool(false).String())
+}
+
 func TestFunc(t *testing.T) {
 	tests := []struct {
 		name string
