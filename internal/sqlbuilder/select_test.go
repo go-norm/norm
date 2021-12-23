@@ -7,7 +7,6 @@ package sqlbuilder
 import (
 	"context"
 	"database/sql"
-	"strconv"
 	"testing"
 
 	mockrequire "github.com/derision-test/go-mockgen/testutil/require"
@@ -196,7 +195,7 @@ JOIN "user_invites" ON ("users"."id" = "user_invites"."id")
 						"user_id": expr.Eq(12),
 					},
 					expr.Or(
-						expr.Raw(strconv.FormatBool(false)),
+						expr.Bool(false),
 						expr.Cond{"id": expr.Lt(88)},
 					),
 				).
@@ -228,7 +227,7 @@ SELECT
 FROM "actions"
 WHERE
 	"user_id" = ?
-AND (false OR "id" < ?)
+AND (FALSE OR "id" < ?)
 AND repo_id IN (
 	SELECT
 		"repository"."id"
