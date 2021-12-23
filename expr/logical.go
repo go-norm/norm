@@ -7,6 +7,7 @@ package expr
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"unknwon.dev/norm/internal/immutable"
@@ -183,11 +184,18 @@ func (e *RawExpr) Empty() bool {
 //   => SOUNDEX('Hello')
 //   expr.Raw("SOUNDEX('Hello')")
 func Raw(value string, args ...interface{}) *RawExpr {
-	r := &RawExpr{value: value, args: nil}
+	r := &RawExpr{
+		value: value,
+	}
 	if len(args) > 0 {
 		r.args = &args
 	}
 	return r
+}
+
+// Bool returns a RawExpr based on the given boolean value.
+func Bool(value bool) *RawExpr {
+	return Raw(strings.ToUpper(strconv.FormatBool(value)))
 }
 
 var _ LogicalExpr = (*FuncExpr)(nil)
@@ -285,7 +293,8 @@ func (e *OrExpr) Or(ors ...LogicalExpr) *OrExpr {
 }
 
 // Or joins given expressions by logical disjunction (LogicalOr). Expressions
-// can be represented by mixes of `expr.Cond{}`, `expr.Or()` and `expr.And()`.
+// can be represented by mixes of `expr.Cond{}`, `expr.Or()`, `expr.And()` and
+// `expr.Raw()`.
 //
 // Example:
 //

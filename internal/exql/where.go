@@ -42,7 +42,7 @@ func groupConditions(t *Template, conds []Fragment, groupKeyword string) (compil
 			return "", errors.Wrap(err, "compile condition")
 		}
 	}
-	return t.Compile(LayoutClauseGroup, strings.Join(chunks, groupKeyword))
+	return strings.Join(chunks, groupKeyword), nil
 }
 
 func (w *WhereFragment) Compile(t *Template) (string, error) {
@@ -114,9 +114,14 @@ func (and *AndFragment) Compile(t *Template) (string, error) {
 		return "", errors.Wrapf(err, "compile LayoutClauseOperator with keyword %q", t.layouts[LayoutAndKeyword])
 	}
 
-	compiled, err := groupConditions(t, and.Conditions, groupKeyword)
+	grouped, err := groupConditions(t, and.Conditions, groupKeyword)
 	if err != nil {
 		return "", errors.Wrap(err, "group conditions")
+	}
+
+	compiled, err := t.Compile(LayoutClauseGroup, grouped)
+	if err != nil {
+		return "", errors.Wrap(err, "compile LayoutClauseGroup")
 	}
 
 	t.Set(and, compiled)
@@ -154,9 +159,14 @@ func (or *OrFragment) Compile(t *Template) (string, error) {
 		return "", errors.Wrapf(err, "compile LayoutClauseOperator with keyword %q", t.layouts[LayoutOrKeyword])
 	}
 
-	compiled, err := groupConditions(t, or.Conditions, groupKeyword)
+	grouped, err := groupConditions(t, or.Conditions, groupKeyword)
 	if err != nil {
 		return "", errors.Wrap(err, "group conditions")
+	}
+
+	compiled, err := t.Compile(LayoutClauseGroup, grouped)
+	if err != nil {
+		return "", errors.Wrap(err, "compile LayoutClauseGroup")
 	}
 
 	t.Set(or, compiled)

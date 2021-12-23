@@ -34,12 +34,12 @@ func TestOrderBy(t *testing.T) {
 	require.NoError(t, err)
 
 	want := `ORDER BY "id", "customer", "service_id" ASC, "users"."name" DESC, "users"."id", CASE WHEN id IN ? THEN 0 ELSE 1 END`
-	assert.Equal(t, want, stripWhitespace(got))
+	assert.Equal(t, want, StripWhitespace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
 		got, err := ob.Compile(tmpl)
 		assert.NoError(t, err)
-		assert.Equal(t, want, stripWhitespace(got))
+		assert.Equal(t, want, StripWhitespace(got))
 	})
 }
 
@@ -50,11 +50,11 @@ func TestSortColumn(t *testing.T) {
 	require.NoError(t, err)
 
 	want := `"id"`
-	assert.Equal(t, want, stripWhitespace(got))
+	assert.Equal(t, want, StripWhitespace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
 		got, err := sc.Compile(tmpl)
 		assert.NoError(t, err)
-		assert.Equal(t, want, stripWhitespace(got))
+		assert.Equal(t, want, StripWhitespace(got))
 	})
 }

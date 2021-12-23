@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"unknwon.dev/norm/expr"
+	"unknwon.dev/norm/internal/exql"
 )
 
 //go:generate go-mockgen --force database/sql/driver -i Valuer -o mock_driver_valuer_test.go
@@ -20,6 +21,20 @@ func TestExpandQuery(t *testing.T) {
 
 	mockValuer := NewMockValuer()
 	mockValuer.ValueFunc.SetDefaultReturn("bar", nil)
+
+	typer := NewMockTyper()
+	typer.ValuerFunc.SetDefaultHook(func(v interface{}) interface{} {
+		return v
+	})
+
+	adapter := NewMockAdapter()
+	adapter.TyperFunc.SetDefaultReturn(typer)
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	sql := New(adapter, tmpl)
 
 	tests := []struct {
 		name      string
@@ -126,8 +141,6 @@ func TestExpandQuery(t *testing.T) {
 				1,
 				2,
 				3,
-				[]interface{}{4, 5},
-				[]interface{}{},
 			},
 		},
 
@@ -145,6 +158,17 @@ func TestExpandQuery(t *testing.T) {
 			args:      []interface{}{1, mockCompilable, 3},
 			wantQuery: "?, (DISTINCT(id)), ?",
 			wantArgs:  []interface{}{1, 3},
+		},
+		{
+			name:  "compilable - selector",
+			query: "EXISTS ?",
+			args: []interface{}{
+				sql.Select(expr.Raw("1")).
+					From("users").
+					Where("name = ?", "alice"),
+			},
+			wantQuery: `EXISTS (SELECT 1 FROM "users" WHERE name = ?)`,
+			wantArgs:  []interface{}{"alice"},
 		},
 
 		{
@@ -167,7 +191,7 @@ func TestExpandQuery(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			gotQuery, gotArgs, err := ExpandQuery(test.query, test.args)
 			assert.NoError(t, err)
-			assert.Equal(t, test.wantQuery, gotQuery)
+			assert.Equal(t, test.wantQuery, exql.StripWhitespace(gotQuery))
 			assert.Equal(t, test.wantArgs, gotArgs)
 		})
 	}

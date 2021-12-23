@@ -25,7 +25,7 @@ type ColumnFragment struct {
 }
 
 // Column constructs a ColumnFragment with the given name, where the name can be
-// a string or RawFragment.
+// a string or Fragment.
 //
 // When a string is passed as the name, the alias is recognized with a
 // case-insensitive "AS" or whitespace(s):
@@ -80,8 +80,12 @@ func (c *ColumnFragment) Compile(t *Template) (compiled string, err error) {
 			}
 		}
 
-	case *RawFragment:
-		compiled = v.String()
+	case Fragment:
+		compiled, err = v.Compile(t)
+		if err != nil {
+			return "", errors.Wrap(err, "compile fragment")
+		}
+
 	default:
 		return "", errors.Errorf("unsupported column name type %T", v)
 	}
