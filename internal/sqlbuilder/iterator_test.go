@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go-mockgen --force unknwon.dev/norm/adapter -i Adapter -i Typer -o mock_adapter_test.go
+//go:generate go-mockgen --force unknwon.dev/norm/adapter -i Adapter -i Executor -i Rows -i Typer -o mock_adapter_test.go
 func TestIterator_All(t *testing.T) {
 	ctx := context.Background()
 

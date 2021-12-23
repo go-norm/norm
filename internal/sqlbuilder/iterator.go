@@ -8,7 +8,6 @@ package sqlbuilder
 import (
 	"context"
 	"database/sql"
-	"io"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -22,11 +21,11 @@ var _ norm.Iterator = (*iterator)(nil)
 
 type iterator struct {
 	adapter adapter.Adapter
-	cursor  cursor
+	cursor  adapter.Rows
 	err     error
 }
 
-func newIterator(adapter adapter.Adapter, cursor cursor) *iterator {
+func newIterator(adapter adapter.Adapter, cursor adapter.Rows) *iterator {
 	return &iterator{
 		adapter: adapter,
 		cursor:  cursor,
@@ -79,15 +78,6 @@ func (iter *iterator) One(_ context.Context, dest interface{}) (err error) {
 	return nil
 }
 
-//go:generate go-mockgen --force unknwon.dev/norm/internal/sqlbuilder -i cursor -o mock_cursor_test.go
-type cursor interface {
-	io.Closer
-	Columns() ([]string, error)
-	Err() error
-	Next() bool
-	Scan(dest ...interface{}) error
-}
-
 func reset(v interface{}) {
 	elem := reflect.ValueOf(v).Elem()
 	typ := elem.Type()
@@ -105,7 +95,7 @@ func reset(v interface{}) {
 
 var defaultMapper = reflectx.NewMapper("db")
 
-func scanResult(typer adapter.Typer, rows cursor, typ reflect.Type, columns []string) (result reflect.Value, err error) {
+func scanResult(typer adapter.Typer, rows adapter.Rows, typ reflect.Type, columns []string) (result reflect.Value, err error) {
 	switch typ.Kind() {
 	case reflect.Map:
 		result = reflect.MakeMap(typ)
@@ -160,7 +150,7 @@ func scanResult(typer adapter.Typer, rows cursor, typ reflect.Type, columns []st
 
 // fetchRows maps all the rows coming from the *sql.Rows into the given
 // destination. The typer is used to wrap custom types to satisfy sql.Scanner.
-func fetchRows(ctx context.Context, typer adapter.Typer, rows cursor, dest interface{}) error {
+func fetchRows(ctx context.Context, typer adapter.Typer, rows adapter.Rows, dest interface{}) error {
 	defer func() { _ = rows.Close() }()
 
 	destv := reflect.ValueOf(dest)
@@ -202,7 +192,7 @@ func fetchRows(ctx context.Context, typer adapter.Typer, rows cursor, dest inter
 
 // fetchRow maps the next row coming from the *sql.Rows into the given
 // destination. The typer is used to wrap custom types to satisfy sql.Scanner.
-func fetchRow(typer adapter.Typer, rows cursor, dest interface{}) error {
+func fetchRow(typer adapter.Typer, rows adapter.Rows, dest interface{}) error {
 	destv := reflect.ValueOf(dest)
 	if destv.IsNil() || destv.Kind() != reflect.Ptr {
 		return errors.New("the destination must be an pointer and cannot be nil")

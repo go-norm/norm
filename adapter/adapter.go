@@ -7,6 +7,7 @@ package adapter
 import (
 	"context"
 	"database/sql"
+	"io"
 
 	"unknwon.dev/norm/internal/exql"
 )
@@ -49,7 +50,7 @@ type Executor interface {
 	Prepare(ctx context.Context, stmt *exql.Statement) (*sql.Stmt, error)
 	// Query compiles the statement to a query and executes it for returning rows.
 	// The args are for any placeholder parameters in the query.
-	Query(ctx context.Context, stmt *exql.Statement, args ...interface{}) (*sql.Rows, error)
+	Query(ctx context.Context, stmt *exql.Statement, args ...interface{}) (Rows, error)
 	// QueryRow compiles the statement to a query and executes it for returning at
 	// most one row.
 	//
@@ -58,6 +59,33 @@ type Executor interface {
 	// `(*sql.Row).Scan` will return `sql.ErrNoRows`. Otherwise, the
 	// `(*sql.Row).Scan` scans the first selected row and discards the rest.
 	QueryRow(ctx context.Context, stmt *exql.Statement, args ...interface{}) (*sql.Row, error)
+}
+
+// Rows is the result of a query. Its cursor starts before the first row of the
+// result set. Use Next to advance from row to row.
+//
+// This is meant to be an abstraction of the *sql.Rows.
+type Rows interface {
+	io.Closer
+	// Columns returns the column names. It returns an error if the rows are closed.
+	Columns() ([]string, error)
+	// Err returns the error, if any, that was encountered during iteration. It may
+	// be called after an explicit or implicit Close.
+	Err() error
+	// Next prepares the next result row for reading with the Scan method. It
+	// returns true on success, or false if there is no next result row or an error
+	// happened while preparing it. Err should be consulted to distinguish between
+	// the two cases.
+	//
+	// Every call to Scan, even the first one, must be preceded by a call to Next.
+	Next() bool
+	// Scan copies the columns in the current row into the values pointed at by
+	// dest. The number of values in dest must be the same as the number of columns
+	// in Rows.
+	//
+	// Refer to *sql.Rows.Scan for column type conversion rules:
+	// https://pkg.go.dev/database/sql#Rows.Scan
+	Scan(dest ...interface{}) error
 }
 
 // Typer transparently wraps types for scanning and storing values from and to

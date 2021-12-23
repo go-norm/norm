@@ -147,6 +147,11 @@ func (on *OnFragment) Compile(t *Template) (string, error) {
 		return "", errors.Wrap(err, "group conditions")
 	}
 
+	grouped, err = t.Compile(LayoutClauseGroup, grouped)
+	if err != nil {
+		return "", errors.Wrap(err, "compile LayoutClauseGroup")
+	}
+
 	data := map[string]interface{}{
 		"Conds": grouped,
 	}

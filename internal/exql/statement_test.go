@@ -35,7 +35,7 @@ func TestStatement(t *testing.T) {
 					ColumnValue("id", expr.ComparisonEqual, Raw("99")),
 				),
 			},
-			want: `DELETE FROM "users" WHERE ("id" = 99)`,
+			want: `DELETE FROM "users" WHERE "id" = 99`,
 		},
 		{
 			name: "drop database",
@@ -73,7 +73,7 @@ func TestStatement(t *testing.T) {
 					ColumnValue("name", expr.ComparisonEqual, Value("alice")),
 				),
 			},
-			want: `UPDATE "users" SET "email" = 'alice@example.com' WHERE ("name" = 'alice')`,
+			want: `UPDATE "users" SET "email" = 'alice@example.com' WHERE "name" = 'alice'`,
 		},
 	}
 	for _, test := range tests {
@@ -127,7 +127,7 @@ func TestStatement_Count(t *testing.T) {
 					ColumnValue("created_at", expr.ComparisonGreaterThan, Raw("NOW()")),
 				),
 			},
-			want: `SELECT COUNT(*) FROM "users" WHERE ("created_at" > NOW())`,
+			want: `SELECT COUNT(*) FROM "users" WHERE "created_at" > NOW()`,
 		},
 	}
 	for _, test := range tests {
@@ -268,10 +268,10 @@ SELECT
 	"email",
 	"created_at"
 FROM "users"
-WHERE (
-		"id" = 1
-	AND deleted_at IS NULL
-)`),
+WHERE
+	"id" = 1
+AND deleted_at IS NULL
+`),
 		},
 		{
 			name: "from many",

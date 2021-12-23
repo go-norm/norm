@@ -167,7 +167,7 @@ func TestExpandQuery(t *testing.T) {
 					From("users").
 					Where("name = ?", "alice"),
 			},
-			wantQuery: `EXISTS (SELECT 1 FROM "users" WHERE (name = ?))`,
+			wantQuery: `EXISTS (SELECT 1 FROM "users" WHERE name = ?)`,
 			wantArgs:  []interface{}{"alice"},
 		},
 

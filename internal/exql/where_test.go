@@ -28,7 +28,7 @@ func TestWhere(t *testing.T) {
 	got, err := w.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := `WHERE ("id" > 8 AND "other"."id" < 100 AND "name" = 'Haruki Murakami' AND "created" >= NOW() AND "modified" <= NOW())`
+	want := `WHERE "id" > 8 AND "other"."id" < 100 AND "name" = 'Haruki Murakami' AND "created" >= NOW() AND "modified" <= NOW()`
 	assert.Equal(t, want, strings.TrimSpace(got))
 
 	t.Run("cache hit", func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestWhere_Append(t *testing.T) {
 	got, err = w.Compile(tmpl)
 	require.NoError(t, err)
 
-	want := `WHERE ("id" > 8)`
+	want := `WHERE "id" > 8`
 	assert.Equal(t, want, strings.TrimSpace(got))
 }
 
@@ -138,6 +138,16 @@ func TestWhere_And_Or(t *testing.T) {
 	got, err := w.Compile(defaultTemplate(t))
 	require.NoError(t, err)
 
-	want := `WHERE (("id" > 8 AND "id" < 99 AND ("age" < 18 OR "age" > 41)) AND "name" = 'John' AND ("last_name" = 'Smith' OR "last_name" = 'Reyes') AND city_id = 728)`
+	want := StripWhitespace(`
+WHERE
+	(
+			"id" > 8
+		AND "id" < 99
+		AND ("age" < 18 OR "age" > 41)
+	)
+AND "name" = 'John'
+AND ("last_name" = 'Smith' OR "last_name" = 'Reyes')
+AND city_id = 728
+`)
 	assert.Equal(t, want, strings.TrimSpace(got))
 }

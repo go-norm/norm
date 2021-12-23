@@ -255,12 +255,16 @@ func (sel *selector) On(conds ...interface{}) norm.Selector {
 				continue
 			}
 
-			chunks := strings.SplitN(str, " ", 3)
-			if len(chunks) != 3 {
+			chunks := strings.SplitN(str, "=", 2)
+			if len(chunks) != 2 {
 				continue
 			}
 
-			conds[i] = exql.ColumnValue(chunks[0], chunks[1], exql.Column(chunks[2]))
+			conds[i] = exql.ColumnValue(
+				strings.TrimSpace(chunks[0]),
+				expr.ComparisonEqual,
+				exql.Column(strings.TrimSpace(chunks[1])),
+			)
 		}
 
 		where, args, err := toWhere(sel.Builder().Template, conds)

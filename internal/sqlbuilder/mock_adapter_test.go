@@ -3,9 +3,12 @@
 package sqlbuilder
 
 import (
+	"context"
+	"database/sql"
 	"sync"
 
 	adapter "unknwon.dev/norm/adapter"
+	exql "unknwon.dev/norm/internal/exql"
 )
 
 // MockAdapter is a mock implementation of the Adapter interface (from the
@@ -494,6 +497,1172 @@ func (c AdapterTyperFuncCall) Args() []interface{} {
 // Results returns an interface slice containing the results of this
 // invocation.
 func (c AdapterTyperFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0}
+}
+
+// MockExecutor is a mock implementation of the Executor interface (from the
+// package unknwon.dev/norm/adapter) used for unit testing.
+type MockExecutor struct {
+	// ExecFunc is an instance of a mock function object controlling the
+	// behavior of the method Exec.
+	ExecFunc *ExecutorExecFunc
+	// PrepareFunc is an instance of a mock function object controlling the
+	// behavior of the method Prepare.
+	PrepareFunc *ExecutorPrepareFunc
+	// QueryFunc is an instance of a mock function object controlling the
+	// behavior of the method Query.
+	QueryFunc *ExecutorQueryFunc
+	// QueryRowFunc is an instance of a mock function object controlling the
+	// behavior of the method QueryRow.
+	QueryRowFunc *ExecutorQueryRowFunc
+}
+
+// NewMockExecutor creates a new mock of the Executor interface. All methods
+// return zero values for all results, unless overwritten.
+func NewMockExecutor() *MockExecutor {
+	return &MockExecutor{
+		ExecFunc: &ExecutorExecFunc{
+			defaultHook: func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error) {
+				return nil, nil
+			},
+		},
+		PrepareFunc: &ExecutorPrepareFunc{
+			defaultHook: func(context.Context, *exql.Statement) (*sql.Stmt, error) {
+				return nil, nil
+			},
+		},
+		QueryFunc: &ExecutorQueryFunc{
+			defaultHook: func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error) {
+				return nil, nil
+			},
+		},
+		QueryRowFunc: &ExecutorQueryRowFunc{
+			defaultHook: func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error) {
+				return nil, nil
+			},
+		},
+	}
+}
+
+// NewStrictMockExecutor creates a new mock of the Executor interface. All
+// methods panic on invocation, unless overwritten.
+func NewStrictMockExecutor() *MockExecutor {
+	return &MockExecutor{
+		ExecFunc: &ExecutorExecFunc{
+			defaultHook: func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error) {
+				panic("unexpected invocation of MockExecutor.Exec")
+			},
+		},
+		PrepareFunc: &ExecutorPrepareFunc{
+			defaultHook: func(context.Context, *exql.Statement) (*sql.Stmt, error) {
+				panic("unexpected invocation of MockExecutor.Prepare")
+			},
+		},
+		QueryFunc: &ExecutorQueryFunc{
+			defaultHook: func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error) {
+				panic("unexpected invocation of MockExecutor.Query")
+			},
+		},
+		QueryRowFunc: &ExecutorQueryRowFunc{
+			defaultHook: func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error) {
+				panic("unexpected invocation of MockExecutor.QueryRow")
+			},
+		},
+	}
+}
+
+// NewMockExecutorFrom creates a new mock of the MockExecutor interface. All
+// methods delegate to the given implementation, unless overwritten.
+func NewMockExecutorFrom(i adapter.Executor) *MockExecutor {
+	return &MockExecutor{
+		ExecFunc: &ExecutorExecFunc{
+			defaultHook: i.Exec,
+		},
+		PrepareFunc: &ExecutorPrepareFunc{
+			defaultHook: i.Prepare,
+		},
+		QueryFunc: &ExecutorQueryFunc{
+			defaultHook: i.Query,
+		},
+		QueryRowFunc: &ExecutorQueryRowFunc{
+			defaultHook: i.QueryRow,
+		},
+	}
+}
+
+// ExecutorExecFunc describes the behavior when the Exec method of the
+// parent MockExecutor instance is invoked.
+type ExecutorExecFunc struct {
+	defaultHook func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error)
+	hooks       []func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error)
+	history     []ExecutorExecFuncCall
+	mutex       sync.Mutex
+}
+
+// Exec delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockExecutor) Exec(v0 context.Context, v1 *exql.Statement, v2 ...interface{}) (sql.Result, error) {
+	r0, r1 := m.ExecFunc.nextHook()(v0, v1, v2...)
+	m.ExecFunc.appendCall(ExecutorExecFuncCall{v0, v1, v2, r0, r1})
+	return r0, r1
+}
+
+// SetDefaultHook sets function that is called when the Exec method of the
+// parent MockExecutor instance is invoked and the hook queue is empty.
+func (f *ExecutorExecFunc) SetDefaultHook(hook func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error)) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Exec method of the parent MockExecutor instance invokes the hook at the
+// front of the queue and discards it. After the queue is empty, the default
+// hook function is invoked for any future action.
+func (f *ExecutorExecFunc) PushHook(hook func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error)) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *ExecutorExecFunc) SetDefaultReturn(r0 sql.Result, r1 error) {
+	f.SetDefaultHook(func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error) {
+		return r0, r1
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *ExecutorExecFunc) PushReturn(r0 sql.Result, r1 error) {
+	f.PushHook(func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error) {
+		return r0, r1
+	})
+}
+
+func (f *ExecutorExecFunc) nextHook() func(context.Context, *exql.Statement, ...interface{}) (sql.Result, error) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *ExecutorExecFunc) appendCall(r0 ExecutorExecFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of ExecutorExecFuncCall objects describing the
+// invocations of this function.
+func (f *ExecutorExecFunc) History() []ExecutorExecFuncCall {
+	f.mutex.Lock()
+	history := make([]ExecutorExecFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// ExecutorExecFuncCall is an object that describes an invocation of method
+// Exec on an instance of MockExecutor.
+type ExecutorExecFuncCall struct {
+	// Arg0 is the value of the 1st argument passed to this method
+	// invocation.
+	Arg0 context.Context
+	// Arg1 is the value of the 2nd argument passed to this method
+	// invocation.
+	Arg1 *exql.Statement
+	// Arg2 is a slice containing the values of the variadic arguments
+	// passed to this method invocation.
+	Arg2 []interface{}
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 sql.Result
+	// Result1 is the value of the 2nd result returned from this method
+	// invocation.
+	Result1 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation. The variadic slice argument is flattened in this array such
+// that one positional argument and three variadic arguments would result in
+// a slice of four, not two.
+func (c ExecutorExecFuncCall) Args() []interface{} {
+	trailing := []interface{}{}
+	for _, val := range c.Arg2 {
+		trailing = append(trailing, val)
+	}
+
+	return append([]interface{}{c.Arg0, c.Arg1}, trailing...)
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c ExecutorExecFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0, c.Result1}
+}
+
+// ExecutorPrepareFunc describes the behavior when the Prepare method of the
+// parent MockExecutor instance is invoked.
+type ExecutorPrepareFunc struct {
+	defaultHook func(context.Context, *exql.Statement) (*sql.Stmt, error)
+	hooks       []func(context.Context, *exql.Statement) (*sql.Stmt, error)
+	history     []ExecutorPrepareFuncCall
+	mutex       sync.Mutex
+}
+
+// Prepare delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockExecutor) Prepare(v0 context.Context, v1 *exql.Statement) (*sql.Stmt, error) {
+	r0, r1 := m.PrepareFunc.nextHook()(v0, v1)
+	m.PrepareFunc.appendCall(ExecutorPrepareFuncCall{v0, v1, r0, r1})
+	return r0, r1
+}
+
+// SetDefaultHook sets function that is called when the Prepare method of
+// the parent MockExecutor instance is invoked and the hook queue is empty.
+func (f *ExecutorPrepareFunc) SetDefaultHook(hook func(context.Context, *exql.Statement) (*sql.Stmt, error)) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Prepare method of the parent MockExecutor instance invokes the hook at
+// the front of the queue and discards it. After the queue is empty, the
+// default hook function is invoked for any future action.
+func (f *ExecutorPrepareFunc) PushHook(hook func(context.Context, *exql.Statement) (*sql.Stmt, error)) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *ExecutorPrepareFunc) SetDefaultReturn(r0 *sql.Stmt, r1 error) {
+	f.SetDefaultHook(func(context.Context, *exql.Statement) (*sql.Stmt, error) {
+		return r0, r1
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *ExecutorPrepareFunc) PushReturn(r0 *sql.Stmt, r1 error) {
+	f.PushHook(func(context.Context, *exql.Statement) (*sql.Stmt, error) {
+		return r0, r1
+	})
+}
+
+func (f *ExecutorPrepareFunc) nextHook() func(context.Context, *exql.Statement) (*sql.Stmt, error) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *ExecutorPrepareFunc) appendCall(r0 ExecutorPrepareFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of ExecutorPrepareFuncCall objects describing
+// the invocations of this function.
+func (f *ExecutorPrepareFunc) History() []ExecutorPrepareFuncCall {
+	f.mutex.Lock()
+	history := make([]ExecutorPrepareFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// ExecutorPrepareFuncCall is an object that describes an invocation of
+// method Prepare on an instance of MockExecutor.
+type ExecutorPrepareFuncCall struct {
+	// Arg0 is the value of the 1st argument passed to this method
+	// invocation.
+	Arg0 context.Context
+	// Arg1 is the value of the 2nd argument passed to this method
+	// invocation.
+	Arg1 *exql.Statement
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 *sql.Stmt
+	// Result1 is the value of the 2nd result returned from this method
+	// invocation.
+	Result1 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation.
+func (c ExecutorPrepareFuncCall) Args() []interface{} {
+	return []interface{}{c.Arg0, c.Arg1}
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c ExecutorPrepareFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0, c.Result1}
+}
+
+// ExecutorQueryFunc describes the behavior when the Query method of the
+// parent MockExecutor instance is invoked.
+type ExecutorQueryFunc struct {
+	defaultHook func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error)
+	hooks       []func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error)
+	history     []ExecutorQueryFuncCall
+	mutex       sync.Mutex
+}
+
+// Query delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockExecutor) Query(v0 context.Context, v1 *exql.Statement, v2 ...interface{}) (adapter.Rows, error) {
+	r0, r1 := m.QueryFunc.nextHook()(v0, v1, v2...)
+	m.QueryFunc.appendCall(ExecutorQueryFuncCall{v0, v1, v2, r0, r1})
+	return r0, r1
+}
+
+// SetDefaultHook sets function that is called when the Query method of the
+// parent MockExecutor instance is invoked and the hook queue is empty.
+func (f *ExecutorQueryFunc) SetDefaultHook(hook func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error)) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Query method of the parent MockExecutor instance invokes the hook at the
+// front of the queue and discards it. After the queue is empty, the default
+// hook function is invoked for any future action.
+func (f *ExecutorQueryFunc) PushHook(hook func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error)) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *ExecutorQueryFunc) SetDefaultReturn(r0 adapter.Rows, r1 error) {
+	f.SetDefaultHook(func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error) {
+		return r0, r1
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *ExecutorQueryFunc) PushReturn(r0 adapter.Rows, r1 error) {
+	f.PushHook(func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error) {
+		return r0, r1
+	})
+}
+
+func (f *ExecutorQueryFunc) nextHook() func(context.Context, *exql.Statement, ...interface{}) (adapter.Rows, error) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *ExecutorQueryFunc) appendCall(r0 ExecutorQueryFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of ExecutorQueryFuncCall objects describing
+// the invocations of this function.
+func (f *ExecutorQueryFunc) History() []ExecutorQueryFuncCall {
+	f.mutex.Lock()
+	history := make([]ExecutorQueryFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// ExecutorQueryFuncCall is an object that describes an invocation of method
+// Query on an instance of MockExecutor.
+type ExecutorQueryFuncCall struct {
+	// Arg0 is the value of the 1st argument passed to this method
+	// invocation.
+	Arg0 context.Context
+	// Arg1 is the value of the 2nd argument passed to this method
+	// invocation.
+	Arg1 *exql.Statement
+	// Arg2 is a slice containing the values of the variadic arguments
+	// passed to this method invocation.
+	Arg2 []interface{}
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 adapter.Rows
+	// Result1 is the value of the 2nd result returned from this method
+	// invocation.
+	Result1 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation. The variadic slice argument is flattened in this array such
+// that one positional argument and three variadic arguments would result in
+// a slice of four, not two.
+func (c ExecutorQueryFuncCall) Args() []interface{} {
+	trailing := []interface{}{}
+	for _, val := range c.Arg2 {
+		trailing = append(trailing, val)
+	}
+
+	return append([]interface{}{c.Arg0, c.Arg1}, trailing...)
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c ExecutorQueryFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0, c.Result1}
+}
+
+// ExecutorQueryRowFunc describes the behavior when the QueryRow method of
+// the parent MockExecutor instance is invoked.
+type ExecutorQueryRowFunc struct {
+	defaultHook func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error)
+	hooks       []func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error)
+	history     []ExecutorQueryRowFuncCall
+	mutex       sync.Mutex
+}
+
+// QueryRow delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockExecutor) QueryRow(v0 context.Context, v1 *exql.Statement, v2 ...interface{}) (*sql.Row, error) {
+	r0, r1 := m.QueryRowFunc.nextHook()(v0, v1, v2...)
+	m.QueryRowFunc.appendCall(ExecutorQueryRowFuncCall{v0, v1, v2, r0, r1})
+	return r0, r1
+}
+
+// SetDefaultHook sets function that is called when the QueryRow method of
+// the parent MockExecutor instance is invoked and the hook queue is empty.
+func (f *ExecutorQueryRowFunc) SetDefaultHook(hook func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error)) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// QueryRow method of the parent MockExecutor instance invokes the hook at
+// the front of the queue and discards it. After the queue is empty, the
+// default hook function is invoked for any future action.
+func (f *ExecutorQueryRowFunc) PushHook(hook func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error)) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *ExecutorQueryRowFunc) SetDefaultReturn(r0 *sql.Row, r1 error) {
+	f.SetDefaultHook(func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error) {
+		return r0, r1
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *ExecutorQueryRowFunc) PushReturn(r0 *sql.Row, r1 error) {
+	f.PushHook(func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error) {
+		return r0, r1
+	})
+}
+
+func (f *ExecutorQueryRowFunc) nextHook() func(context.Context, *exql.Statement, ...interface{}) (*sql.Row, error) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *ExecutorQueryRowFunc) appendCall(r0 ExecutorQueryRowFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of ExecutorQueryRowFuncCall objects describing
+// the invocations of this function.
+func (f *ExecutorQueryRowFunc) History() []ExecutorQueryRowFuncCall {
+	f.mutex.Lock()
+	history := make([]ExecutorQueryRowFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// ExecutorQueryRowFuncCall is an object that describes an invocation of
+// method QueryRow on an instance of MockExecutor.
+type ExecutorQueryRowFuncCall struct {
+	// Arg0 is the value of the 1st argument passed to this method
+	// invocation.
+	Arg0 context.Context
+	// Arg1 is the value of the 2nd argument passed to this method
+	// invocation.
+	Arg1 *exql.Statement
+	// Arg2 is a slice containing the values of the variadic arguments
+	// passed to this method invocation.
+	Arg2 []interface{}
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 *sql.Row
+	// Result1 is the value of the 2nd result returned from this method
+	// invocation.
+	Result1 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation. The variadic slice argument is flattened in this array such
+// that one positional argument and three variadic arguments would result in
+// a slice of four, not two.
+func (c ExecutorQueryRowFuncCall) Args() []interface{} {
+	trailing := []interface{}{}
+	for _, val := range c.Arg2 {
+		trailing = append(trailing, val)
+	}
+
+	return append([]interface{}{c.Arg0, c.Arg1}, trailing...)
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c ExecutorQueryRowFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0, c.Result1}
+}
+
+// MockRows is a mock implementation of the Rows interface (from the package
+// unknwon.dev/norm/adapter) used for unit testing.
+type MockRows struct {
+	// CloseFunc is an instance of a mock function object controlling the
+	// behavior of the method Close.
+	CloseFunc *RowsCloseFunc
+	// ColumnsFunc is an instance of a mock function object controlling the
+	// behavior of the method Columns.
+	ColumnsFunc *RowsColumnsFunc
+	// ErrFunc is an instance of a mock function object controlling the
+	// behavior of the method Err.
+	ErrFunc *RowsErrFunc
+	// NextFunc is an instance of a mock function object controlling the
+	// behavior of the method Next.
+	NextFunc *RowsNextFunc
+	// ScanFunc is an instance of a mock function object controlling the
+	// behavior of the method Scan.
+	ScanFunc *RowsScanFunc
+}
+
+// NewMockRows creates a new mock of the Rows interface. All methods return
+// zero values for all results, unless overwritten.
+func NewMockRows() *MockRows {
+	return &MockRows{
+		CloseFunc: &RowsCloseFunc{
+			defaultHook: func() error {
+				return nil
+			},
+		},
+		ColumnsFunc: &RowsColumnsFunc{
+			defaultHook: func() ([]string, error) {
+				return nil, nil
+			},
+		},
+		ErrFunc: &RowsErrFunc{
+			defaultHook: func() error {
+				return nil
+			},
+		},
+		NextFunc: &RowsNextFunc{
+			defaultHook: func() bool {
+				return false
+			},
+		},
+		ScanFunc: &RowsScanFunc{
+			defaultHook: func(...interface{}) error {
+				return nil
+			},
+		},
+	}
+}
+
+// NewStrictMockRows creates a new mock of the Rows interface. All methods
+// panic on invocation, unless overwritten.
+func NewStrictMockRows() *MockRows {
+	return &MockRows{
+		CloseFunc: &RowsCloseFunc{
+			defaultHook: func() error {
+				panic("unexpected invocation of MockRows.Close")
+			},
+		},
+		ColumnsFunc: &RowsColumnsFunc{
+			defaultHook: func() ([]string, error) {
+				panic("unexpected invocation of MockRows.Columns")
+			},
+		},
+		ErrFunc: &RowsErrFunc{
+			defaultHook: func() error {
+				panic("unexpected invocation of MockRows.Err")
+			},
+		},
+		NextFunc: &RowsNextFunc{
+			defaultHook: func() bool {
+				panic("unexpected invocation of MockRows.Next")
+			},
+		},
+		ScanFunc: &RowsScanFunc{
+			defaultHook: func(...interface{}) error {
+				panic("unexpected invocation of MockRows.Scan")
+			},
+		},
+	}
+}
+
+// NewMockRowsFrom creates a new mock of the MockRows interface. All methods
+// delegate to the given implementation, unless overwritten.
+func NewMockRowsFrom(i adapter.Rows) *MockRows {
+	return &MockRows{
+		CloseFunc: &RowsCloseFunc{
+			defaultHook: i.Close,
+		},
+		ColumnsFunc: &RowsColumnsFunc{
+			defaultHook: i.Columns,
+		},
+		ErrFunc: &RowsErrFunc{
+			defaultHook: i.Err,
+		},
+		NextFunc: &RowsNextFunc{
+			defaultHook: i.Next,
+		},
+		ScanFunc: &RowsScanFunc{
+			defaultHook: i.Scan,
+		},
+	}
+}
+
+// RowsCloseFunc describes the behavior when the Close method of the parent
+// MockRows instance is invoked.
+type RowsCloseFunc struct {
+	defaultHook func() error
+	hooks       []func() error
+	history     []RowsCloseFuncCall
+	mutex       sync.Mutex
+}
+
+// Close delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockRows) Close() error {
+	r0 := m.CloseFunc.nextHook()()
+	m.CloseFunc.appendCall(RowsCloseFuncCall{r0})
+	return r0
+}
+
+// SetDefaultHook sets function that is called when the Close method of the
+// parent MockRows instance is invoked and the hook queue is empty.
+func (f *RowsCloseFunc) SetDefaultHook(hook func() error) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Close method of the parent MockRows instance invokes the hook at the
+// front of the queue and discards it. After the queue is empty, the default
+// hook function is invoked for any future action.
+func (f *RowsCloseFunc) PushHook(hook func() error) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *RowsCloseFunc) SetDefaultReturn(r0 error) {
+	f.SetDefaultHook(func() error {
+		return r0
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *RowsCloseFunc) PushReturn(r0 error) {
+	f.PushHook(func() error {
+		return r0
+	})
+}
+
+func (f *RowsCloseFunc) nextHook() func() error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *RowsCloseFunc) appendCall(r0 RowsCloseFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of RowsCloseFuncCall objects describing the
+// invocations of this function.
+func (f *RowsCloseFunc) History() []RowsCloseFuncCall {
+	f.mutex.Lock()
+	history := make([]RowsCloseFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// RowsCloseFuncCall is an object that describes an invocation of method
+// Close on an instance of MockRows.
+type RowsCloseFuncCall struct {
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation.
+func (c RowsCloseFuncCall) Args() []interface{} {
+	return []interface{}{}
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c RowsCloseFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0}
+}
+
+// RowsColumnsFunc describes the behavior when the Columns method of the
+// parent MockRows instance is invoked.
+type RowsColumnsFunc struct {
+	defaultHook func() ([]string, error)
+	hooks       []func() ([]string, error)
+	history     []RowsColumnsFuncCall
+	mutex       sync.Mutex
+}
+
+// Columns delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockRows) Columns() ([]string, error) {
+	r0, r1 := m.ColumnsFunc.nextHook()()
+	m.ColumnsFunc.appendCall(RowsColumnsFuncCall{r0, r1})
+	return r0, r1
+}
+
+// SetDefaultHook sets function that is called when the Columns method of
+// the parent MockRows instance is invoked and the hook queue is empty.
+func (f *RowsColumnsFunc) SetDefaultHook(hook func() ([]string, error)) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Columns method of the parent MockRows instance invokes the hook at the
+// front of the queue and discards it. After the queue is empty, the default
+// hook function is invoked for any future action.
+func (f *RowsColumnsFunc) PushHook(hook func() ([]string, error)) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *RowsColumnsFunc) SetDefaultReturn(r0 []string, r1 error) {
+	f.SetDefaultHook(func() ([]string, error) {
+		return r0, r1
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *RowsColumnsFunc) PushReturn(r0 []string, r1 error) {
+	f.PushHook(func() ([]string, error) {
+		return r0, r1
+	})
+}
+
+func (f *RowsColumnsFunc) nextHook() func() ([]string, error) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *RowsColumnsFunc) appendCall(r0 RowsColumnsFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of RowsColumnsFuncCall objects describing the
+// invocations of this function.
+func (f *RowsColumnsFunc) History() []RowsColumnsFuncCall {
+	f.mutex.Lock()
+	history := make([]RowsColumnsFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// RowsColumnsFuncCall is an object that describes an invocation of method
+// Columns on an instance of MockRows.
+type RowsColumnsFuncCall struct {
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 []string
+	// Result1 is the value of the 2nd result returned from this method
+	// invocation.
+	Result1 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation.
+func (c RowsColumnsFuncCall) Args() []interface{} {
+	return []interface{}{}
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c RowsColumnsFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0, c.Result1}
+}
+
+// RowsErrFunc describes the behavior when the Err method of the parent
+// MockRows instance is invoked.
+type RowsErrFunc struct {
+	defaultHook func() error
+	hooks       []func() error
+	history     []RowsErrFuncCall
+	mutex       sync.Mutex
+}
+
+// Err delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockRows) Err() error {
+	r0 := m.ErrFunc.nextHook()()
+	m.ErrFunc.appendCall(RowsErrFuncCall{r0})
+	return r0
+}
+
+// SetDefaultHook sets function that is called when the Err method of the
+// parent MockRows instance is invoked and the hook queue is empty.
+func (f *RowsErrFunc) SetDefaultHook(hook func() error) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Err method of the parent MockRows instance invokes the hook at the front
+// of the queue and discards it. After the queue is empty, the default hook
+// function is invoked for any future action.
+func (f *RowsErrFunc) PushHook(hook func() error) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *RowsErrFunc) SetDefaultReturn(r0 error) {
+	f.SetDefaultHook(func() error {
+		return r0
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *RowsErrFunc) PushReturn(r0 error) {
+	f.PushHook(func() error {
+		return r0
+	})
+}
+
+func (f *RowsErrFunc) nextHook() func() error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *RowsErrFunc) appendCall(r0 RowsErrFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of RowsErrFuncCall objects describing the
+// invocations of this function.
+func (f *RowsErrFunc) History() []RowsErrFuncCall {
+	f.mutex.Lock()
+	history := make([]RowsErrFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// RowsErrFuncCall is an object that describes an invocation of method Err
+// on an instance of MockRows.
+type RowsErrFuncCall struct {
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation.
+func (c RowsErrFuncCall) Args() []interface{} {
+	return []interface{}{}
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c RowsErrFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0}
+}
+
+// RowsNextFunc describes the behavior when the Next method of the parent
+// MockRows instance is invoked.
+type RowsNextFunc struct {
+	defaultHook func() bool
+	hooks       []func() bool
+	history     []RowsNextFuncCall
+	mutex       sync.Mutex
+}
+
+// Next delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockRows) Next() bool {
+	r0 := m.NextFunc.nextHook()()
+	m.NextFunc.appendCall(RowsNextFuncCall{r0})
+	return r0
+}
+
+// SetDefaultHook sets function that is called when the Next method of the
+// parent MockRows instance is invoked and the hook queue is empty.
+func (f *RowsNextFunc) SetDefaultHook(hook func() bool) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Next method of the parent MockRows instance invokes the hook at the front
+// of the queue and discards it. After the queue is empty, the default hook
+// function is invoked for any future action.
+func (f *RowsNextFunc) PushHook(hook func() bool) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *RowsNextFunc) SetDefaultReturn(r0 bool) {
+	f.SetDefaultHook(func() bool {
+		return r0
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *RowsNextFunc) PushReturn(r0 bool) {
+	f.PushHook(func() bool {
+		return r0
+	})
+}
+
+func (f *RowsNextFunc) nextHook() func() bool {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *RowsNextFunc) appendCall(r0 RowsNextFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of RowsNextFuncCall objects describing the
+// invocations of this function.
+func (f *RowsNextFunc) History() []RowsNextFuncCall {
+	f.mutex.Lock()
+	history := make([]RowsNextFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// RowsNextFuncCall is an object that describes an invocation of method Next
+// on an instance of MockRows.
+type RowsNextFuncCall struct {
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 bool
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation.
+func (c RowsNextFuncCall) Args() []interface{} {
+	return []interface{}{}
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c RowsNextFuncCall) Results() []interface{} {
+	return []interface{}{c.Result0}
+}
+
+// RowsScanFunc describes the behavior when the Scan method of the parent
+// MockRows instance is invoked.
+type RowsScanFunc struct {
+	defaultHook func(...interface{}) error
+	hooks       []func(...interface{}) error
+	history     []RowsScanFuncCall
+	mutex       sync.Mutex
+}
+
+// Scan delegates to the next hook function in the queue and stores the
+// parameter and result values of this invocation.
+func (m *MockRows) Scan(v0 ...interface{}) error {
+	r0 := m.ScanFunc.nextHook()(v0...)
+	m.ScanFunc.appendCall(RowsScanFuncCall{v0, r0})
+	return r0
+}
+
+// SetDefaultHook sets function that is called when the Scan method of the
+// parent MockRows instance is invoked and the hook queue is empty.
+func (f *RowsScanFunc) SetDefaultHook(hook func(...interface{}) error) {
+	f.defaultHook = hook
+}
+
+// PushHook adds a function to the end of hook queue. Each invocation of the
+// Scan method of the parent MockRows instance invokes the hook at the front
+// of the queue and discards it. After the queue is empty, the default hook
+// function is invoked for any future action.
+func (f *RowsScanFunc) PushHook(hook func(...interface{}) error) {
+	f.mutex.Lock()
+	f.hooks = append(f.hooks, hook)
+	f.mutex.Unlock()
+}
+
+// SetDefaultReturn calls SetDefaultDefaultHook with a function that returns
+// the given values.
+func (f *RowsScanFunc) SetDefaultReturn(r0 error) {
+	f.SetDefaultHook(func(...interface{}) error {
+		return r0
+	})
+}
+
+// PushReturn calls PushDefaultHook with a function that returns the given
+// values.
+func (f *RowsScanFunc) PushReturn(r0 error) {
+	f.PushHook(func(...interface{}) error {
+		return r0
+	})
+}
+
+func (f *RowsScanFunc) nextHook() func(...interface{}) error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if len(f.hooks) == 0 {
+		return f.defaultHook
+	}
+
+	hook := f.hooks[0]
+	f.hooks = f.hooks[1:]
+	return hook
+}
+
+func (f *RowsScanFunc) appendCall(r0 RowsScanFuncCall) {
+	f.mutex.Lock()
+	f.history = append(f.history, r0)
+	f.mutex.Unlock()
+}
+
+// History returns a sequence of RowsScanFuncCall objects describing the
+// invocations of this function.
+func (f *RowsScanFunc) History() []RowsScanFuncCall {
+	f.mutex.Lock()
+	history := make([]RowsScanFuncCall, len(f.history))
+	copy(history, f.history)
+	f.mutex.Unlock()
+
+	return history
+}
+
+// RowsScanFuncCall is an object that describes an invocation of method Scan
+// on an instance of MockRows.
+type RowsScanFuncCall struct {
+	// Arg0 is a slice containing the values of the variadic arguments
+	// passed to this method invocation.
+	Arg0 []interface{}
+	// Result0 is the value of the 1st result returned from this method
+	// invocation.
+	Result0 error
+}
+
+// Args returns an interface slice containing the arguments of this
+// invocation. The variadic slice argument is flattened in this array such
+// that one positional argument and three variadic arguments would result in
+// a slice of four, not two.
+func (c RowsScanFuncCall) Args() []interface{} {
+	trailing := []interface{}{}
+	for _, val := range c.Arg0 {
+		trailing = append(trailing, val)
+	}
+
+	return append([]interface{}{}, trailing...)
+}
+
+// Results returns an interface slice containing the results of this
+// invocation.
+func (c RowsScanFuncCall) Results() []interface{} {
 	return []interface{}{c.Result0}
 }
 

@@ -5,9 +5,12 @@
 package sqlbuilder
 
 import (
+	"context"
+	"database/sql"
 	"strconv"
 	"testing"
 
+	mockrequire "github.com/derision-test/go-mockgen/testutil/require"
 	"github.com/stretchr/testify/assert"
 
 	"unknwon.dev/norm"
@@ -62,10 +65,10 @@ SELECT
 	"email",
 	"created_at"
 FROM "users"
-WHERE (
-		"id" = ?
-	AND "deleted_at" IS NULL
-)`),
+WHERE
+	"id" = ?
+AND "deleted_at" IS NULL
+`),
 			wantArgs: []interface{}{1},
 		},
 		{
@@ -223,22 +226,20 @@ JOIN "user_invites" ON ("users"."id" = "user_invites"."id")
 SELECT
 	*
 FROM "actions"
-WHERE (
-		"user_id" = ?
-	AND (false OR "id" < ?)
-	AND repo_id IN (
-		SELECT
-			"repository"."id"
-		FROM "repositories"
-		JOIN "team_repos" ON ("repository"."id" = "team_repo"."repo_id")
-		WHERE (
-			team_repos.team_id IN (
-				SELECT "team_id" FROM "team_users" WHERE ((
-						("team_users"."org_id" = ? AND "uid" = ?)
-					OR  ("repositories"."is_private" = ? AND "repositories"."is_unlisted" = ?)
-				))
+WHERE
+	"user_id" = ?
+AND (false OR "id" < ?)
+AND repo_id IN (
+	SELECT
+		"repository"."id"
+	FROM "repositories"
+	JOIN "team_repos" ON ("repository"."id" = "team_repo"."repo_id")
+	WHERE
+		team_repos.team_id IN (
+			SELECT "team_id" FROM "team_users" WHERE (
+					("team_users"."org_id" = ? AND "uid" = ?)
+				OR  ("repositories"."is_private" = ? AND "repositories"."is_unlisted" = ?)
 			)
-		)
 	)
 )
 ORDER BY "id" DESC
@@ -378,7 +379,7 @@ func TestSelector_Where(t *testing.T) {
 					"users.name",
 					857,
 				),
-			wantQuery: `SELECT * WHERE ((SELECT * FROM "users_emails") AND version() AND NOW() AND 'users.name' AND '857')`,
+			wantQuery: `SELECT * WHERE (SELECT * FROM "users_emails") AND version() AND NOW() AND 'users.name' AND '857'`,
 			wantArgs:  nil,
 		},
 		{
@@ -389,7 +390,7 @@ func TestSelector_Where(t *testing.T) {
 						From("users").
 						Where("name = ?", "alice"),
 				),
-			wantQuery: `SELECT * FROM "users" WHERE (EXISTS (SELECT 1 FROM "users" WHERE (name = ?)))`,
+			wantQuery: `SELECT * FROM "users" WHERE EXISTS (SELECT 1 FROM "users" WHERE name = ?)`,
 			wantArgs:  []interface{}{"alice"},
 		},
 	}
@@ -418,7 +419,7 @@ func TestSelector_And(t *testing.T) {
 			857,
 		)
 
-	want := `SELECT * WHERE ((SELECT * FROM "users_emails") AND version() AND NOW() AND 'users.name' AND '857')`
+	want := `SELECT * WHERE (SELECT * FROM "users_emails") AND version() AND NOW() AND 'users.name' AND '857'`
 	assert.Equal(t, want, sel.String())
 }
 
@@ -457,9 +458,10 @@ func TestSelector_OrderBy(t *testing.T) {
 			expr.Func("AVG", 9.6),
 			expr.Raw("NOW()"),
 			"users.name",
+			"-users.gender",
 		)
 
-	want := `SELECT * ORDER BY version(), AVG(?), NOW(), "users"."name" ASC`
+	want := `SELECT * ORDER BY version(), AVG(?), NOW(), "users"."name" ASC, "users"."gender" DESC`
 	assert.Equal(t, want, sel.String())
 }
 
@@ -489,4 +491,162 @@ RIGHT JOIN "customers" ON ("users"."id" = "customers"."id")
 LEFT JOIN "sellers" ON ("users"."id" = "sellers"."id")
 `)
 	assert.Equal(t, want, sel.String())
+}
+
+func TestSelector_On(t *testing.T) {
+	adapter := NewMockAdapter()
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	sql := New(adapter, tmpl)
+
+	t.Run("no join", func(t *testing.T) {
+		assert.Panics(t, func() {
+			_ = sql.Select().On("a.id = b.id").String()
+		})
+	})
+
+	t.Run("multiple ons", func(t *testing.T) {
+		assert.Panics(t, func() {
+			_ = sql.Select().Join("b").On("a.id = b.id").On("").String()
+		})
+	})
+
+	sel := sql.SelectFrom("users").
+		Join("user_emails").On().On("users.id = user_emails.id")
+
+	want := exql.StripWhitespace(`SELECT * FROM "users" JOIN "user_emails" ON ("users"."id" = "user_emails"."id")`)
+	assert.Equal(t, want, sel.String())
+}
+
+func TestSelector_Using(t *testing.T) {
+	adapter := NewMockAdapter()
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	sql := New(adapter, tmpl)
+
+	t.Run("no join", func(t *testing.T) {
+		assert.Panics(t, func() {
+			_ = sql.Select().Using("a.id").String()
+		})
+	})
+
+	t.Run("multiple ons", func(t *testing.T) {
+		assert.Panics(t, func() {
+			_ = sql.Select().Join("b").Using("a.id").Using("").String()
+		})
+	})
+
+	sel := sql.SelectFrom("users").
+		Join("user_emails").Using().Using("users.id")
+
+	want := exql.StripWhitespace(`SELECT * FROM "users" JOIN "user_emails" USING ("users"."id")`)
+	assert.Equal(t, want, sel.String())
+}
+
+func TestSelector_Limit(t *testing.T) {
+	adapter := NewMockAdapter()
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	sql := New(adapter, tmpl)
+	tests := []struct {
+		name      string
+		selector  norm.Selector
+		wantQuery string
+	}{
+		{
+			name:      "good",
+			selector:  sql.Select().Limit(10),
+			wantQuery: `SELECT * LIMIT 10`,
+		},
+		{
+			name:      "bad",
+			selector:  sql.Select().Limit(-1),
+			wantQuery: `SELECT *`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.wantQuery, test.selector.String())
+		})
+	}
+}
+
+func TestSelector_Offset(t *testing.T) {
+	adapter := NewMockAdapter()
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	sql := New(adapter, tmpl)
+	tests := []struct {
+		name      string
+		selector  norm.Selector
+		wantQuery string
+	}{
+		{
+			name:      "good",
+			selector:  sql.Select().Offset(10),
+			wantQuery: `SELECT * OFFSET 10`,
+		},
+		{
+			name:      "bad",
+			selector:  sql.Select().Offset(-1),
+			wantQuery: `SELECT *`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.wantQuery, test.selector.String())
+		})
+	}
+}
+
+func TestSelector_Iterate(t *testing.T) {
+	ctx := context.Background()
+
+	// Mock two results
+	cursor := NewMockCursor()
+	cursor.ColumnsFunc.SetDefaultReturn([]string{"name", "email"}, nil)
+	cursor.NextFunc.PushReturn(true)
+	cursor.NextFunc.PushReturn(true)
+	cursor.ScanFunc.PushHook(func(dest ...interface{}) error {
+		assert.Len(t, dest, 2)
+		return nil
+	})
+
+	executor := NewMockExecutor()
+	executor.QueryFunc.SetDefaultReturn(cursor, nil)
+
+	typer := NewMockTyper()
+	typer.ValuerFunc.SetDefaultHook(func(v interface{}) interface{} {
+		return v
+	})
+
+	adapter := NewMockAdapter()
+	adapter.ExecutorFunc.SetDefaultReturn(executor)
+	adapter.TyperFunc.SetDefaultReturn(typer)
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	sqlb := New(adapter, tmpl)
+
+	dest := make([]map[string]interface{}, 0)
+	err := sqlb.Select().All(ctx, &dest)
+	assert.NoError(t, err)
+	mockrequire.Called(t, cursor.ScanFunc)
+
+	err = sqlb.Select().One(ctx, &dest)
+	assert.EqualError(t, err, sql.ErrNoRows.Error())
 }
