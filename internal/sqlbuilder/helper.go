@@ -397,6 +397,42 @@ func expandComparison(t *exql.Template, cmp *expr.Comparison) (operator, placeho
 	return operator, placeholder, args, nil
 }
 
+// todo MapOptions represents options for the mapper.
+type MapOptions struct {
+	IncludeZeroed bool
+	IncludeNil    bool
+}
+
+// todo
+var defaultMapOptions = MapOptions{
+	IncludeZeroed: false,
+	IncludeNil:    false,
+}
+
+// todo
+type hasIsZero interface {
+	IsZero() bool
+}
+
+// todo
+type fieldValue struct {
+	fields []string
+	values []interface{}
+}
+
+func (fv *fieldValue) Len() int {
+	return len(fv.fields)
+}
+
+func (fv *fieldValue) Swap(i, j int) {
+	fv.fields[i], fv.fields[j] = fv.fields[j], fv.fields[i]
+	fv.values[i], fv.values[j] = fv.values[j], fv.values[i]
+}
+
+func (fv *fieldValue) Less(i, j int) bool {
+	return fv.fields[i] < fv.fields[j]
+}
+
 // todo mapToColumnsAndValues receives a pointer to map or struct and maps it to columns and values.
 func mapToColumnsAndValues(item interface{}, options *MapOptions) ([]string, []interface{}, error) {
 	var fv fieldValue
