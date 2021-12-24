@@ -7,6 +7,9 @@ package sqlbuilder
 
 import (
 	"database/sql/driver"
+	"fmt"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -15,6 +18,7 @@ import (
 	"unknwon.dev/norm"
 	"unknwon.dev/norm/expr"
 	"unknwon.dev/norm/internal/exql"
+	"unknwon.dev/norm/internal/reflectx"
 )
 
 func toColumns(exprs []interface{}) (columns []exql.Fragment, args []interface{}, err error) {
@@ -391,4 +395,135 @@ func expandComparison(t *exql.Template, cmp *expr.Comparison) (operator, placeho
 		return "", "", nil, errors.Errorf("unexpected operator %v", op)
 	}
 	return operator, placeholder, args, nil
+}
+
+// todo mapToColumnsAndValues receives a pointer to map or struct and maps it to columns and values.
+func mapToColumnsAndValues(item interface{}, options *MapOptions) ([]string, []interface{}, error) {
+	var fv fieldValue
+	if options == nil {
+		options = &defaultMapOptions
+	}
+
+	itemV := reflect.ValueOf(item)
+	if !itemV.IsValid() {
+		return nil, nil, nil
+	}
+
+	itemT := itemV.Type()
+
+	if itemT.Kind() == reflect.Ptr {
+		// Single dereference. Just in case the user passes a pointer to struct
+		// instead of a struct.
+		item = itemV.Elem().Interface()
+		itemV = reflect.ValueOf(item)
+		itemT = itemV.Type()
+	}
+
+	switch itemT.Kind() {
+	case reflect.Struct:
+		fieldMap := defaultMapper.TypeMap(itemT).Names
+		nfields := len(fieldMap)
+
+		fv.values = make([]interface{}, 0, nfields)
+		fv.fields = make([]string, 0, nfields)
+
+		for _, fi := range fieldMap {
+			// Field options
+			_, tagOmitEmpty := fi.Options["omitempty"]
+
+			fld := reflectx.FieldByIndexesReadOnly(itemV, fi.Index)
+			if fld.Kind() == reflect.Ptr && fld.IsNil() {
+				if tagOmitEmpty && !options.IncludeNil {
+					continue
+				}
+				fv.fields = append(fv.fields, fi.Name)
+				if tagOmitEmpty {
+					fv.values = append(fv.values, exql.Raw("DEFAULT"))
+				} else {
+					fv.values = append(fv.values, nil)
+				}
+				continue
+			}
+
+			value := fld.Interface()
+
+			isZero := false
+			if t, ok := fld.Interface().(hasIsZero); ok {
+				if t.IsZero() {
+					isZero = true
+				}
+			} else if fld.Kind() == reflect.Array || fld.Kind() == reflect.Slice {
+				if fld.Len() == 0 {
+					isZero = true
+				}
+			} else if reflect.DeepEqual(fi.Zero.Interface(), value) {
+				isZero = true
+			}
+
+			if isZero && tagOmitEmpty && !options.IncludeZeroed {
+				continue
+			}
+
+			fv.fields = append(fv.fields, fi.Name)
+			if isZero && tagOmitEmpty {
+				value = exql.Raw("DEFAULT")
+			}
+			fv.values = append(fv.values, value)
+		}
+
+	case reflect.Map:
+		nfields := itemV.Len()
+		fv.values = make([]interface{}, nfields)
+		fv.fields = make([]string, nfields)
+		mkeys := itemV.MapKeys()
+
+		for i, keyV := range mkeys {
+			valv := itemV.MapIndex(keyV)
+			fv.fields[i] = fmt.Sprintf("%v", keyV.Interface())
+			fv.values[i] = valv.Interface()
+		}
+	default:
+		return nil, nil, errors.New("the type must be a map or struct or a point to a map or struct")
+	}
+
+	sort.Sort(&fv)
+
+	return fv.fields, fv.values, nil
+}
+
+// todo toColumnsValuesAndArguments maps the given columnNames and columnValues into
+// expr's Columns and ValuesGroup, it also extracts and returns query arguments.
+func toColumnsValuesAndArguments(columnNames []string, columnValues []interface{}) (*exql.ColumnsFragment, *exql.ValuesGroupFragment, []interface{}, error) {
+	var arguments []interface{}
+
+	columns := new(exql.ColumnsFragment)
+
+	columns.Columns = make([]*exql.ColumnFragment, 0, len(columnNames))
+	for i := range columnNames {
+		columns.Columns = append(columns.Columns, exql.Column(columnNames[i]))
+	}
+
+	values := new(exql.ValuesGroupFragment)
+
+	arguments = make([]interface{}, 0, len(columnValues))
+	values.Values = make([]exql.Fragment, 0, len(columnValues))
+
+	for i := range columnValues {
+		switch v := columnValues[i].(type) {
+		case *exql.RawFragment, exql.RawFragment:
+			values.Values = append(values.Values, exql.Raw("DEFAULT"))
+		case *exql.ValueFragment:
+			// Adding value.
+			values.Values = append(values.Values, v)
+		case exql.ValueFragment:
+			// Adding value.
+			values.Values = append(values.Values, &v)
+		default:
+			// Adding both value and placeholder.
+			values.Values = append(values.Values, exql.Raw("?"))
+			arguments = append(arguments, v)
+		}
+	}
+
+	return columns, values, arguments, nil
 }

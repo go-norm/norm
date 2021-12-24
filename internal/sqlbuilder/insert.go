@@ -160,91 +160,49 @@ type inserterQuery struct {
 	amendFn func(string) string
 }
 
-// todo toColumnsValuesAndArguments maps the given columnNames and columnValues into
-// expr's Columns and ValuesGroup, it also extracts and returns query arguments.
-func toColumnsValuesAndArguments(columnNames []string, columnValues []interface{}) (*exql.ColumnsFragment, *exql.ValuesGroupFragment, []interface{}, error) {
-	var arguments []interface{}
-
-	columns := new(exql.ColumnsFragment)
-
-	columns.Columns = make([]*exql.ColumnFragment, 0, len(columnNames))
-	for i := range columnNames {
-		columns.Columns = append(columns.Columns, exql.Column(columnNames[i]))
-	}
-
-	values := new(exql.ValuesGroupFragment)
-
-	arguments = make([]interface{}, 0, len(columnValues))
-	values.Values = make([]exql.Fragment, 0, len(columnValues))
-
-	for i := range columnValues {
-		switch v := columnValues[i].(type) {
-		case *exql.RawFragment, exql.RawFragment:
-			values.Values = append(values.Values, exql.Raw("DEFAULT"))
-		case *exql.ValueFragment:
-			// Adding value.
-			values.Values = append(values.Values, v)
-		case exql.ValueFragment:
-			// Adding value.
-			values.Values = append(values.Values, &v)
-		default:
-			// Adding both value and placeholder.
-			values.Values = append(values.Values, exql.Raw("?"))
-			arguments = append(arguments, v)
-		}
-	}
-
-	return columns, values, arguments, nil
-}
-
-// todo
 func (iq *inserterQuery) processValues() (*exql.ValuesGroupsFragment, []interface{}, error) {
-	var values []*exql.ValuesGroupFragment
-	var arguments []interface{}
-
 	var mapOptions *MapOptions
 	if len(iq.enqueuedValues) > 1 {
-		mapOptions = &MapOptions{IncludeZeroed: true, IncludeNil: true}
+		mapOptions = &MapOptions{IncludeZeroed: true, IncludeNil: true} // todo
 	}
 
+	values := make([]*exql.ValuesGroupFragment, 0, len(iq.enqueuedValues))
+	args := []interface{}{}
 	for _, enqueuedValue := range iq.enqueuedValues {
 		if len(enqueuedValue) == 1 {
 			// If and only if we passed one argument to ValuesGroup.
-			ff, vv, err := Map(enqueuedValue[0], mapOptions)
-
-			if err == nil {
-				// If we didn't have any problem with mapping we can convert it into
-				// columns and values.
-				columns, vals, args, _ := toColumnsValuesAndArguments(ff, vv)
-
-				values, arguments = append(values, vals), append(arguments, args...)
-
-				if iq.columns.Empty() {
-					iq.columns.Append(columns.Columns...)
-				}
-				continue
+			ff, vv, err := mapToColumnsAndValues(enqueuedValue[0], mapOptions)
+			if err != nil {
+				// // The only error we can expect without exiting is this argument not
+				// // being a map or struct, in which case we can continue.
+				// if !errors.Is(err, ErrExpectingPointerToEitherMapOrStruct) {
+				// 	return nil, nil, err
+				// }
+				return nil, nil, errors.Wrap(err, "TODO") // todo
 			}
 
-			// The only error we can expect without exiting is this argument not
-			// being a map or struct, in which case we can continue.
-			if !errors.Is(err, ErrExpectingPointerToEitherMapOrStruct) {
-				return nil, nil, err
+			columns, vals, cvArgs, err := toColumnsValuesAndArguments(ff, vv)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "TODO") // todo
+			}
+
+			values = append(values, vals)
+			args = append(args, cvArgs...)
+			if iq.columns.Empty() {
+				iq.columns.Append(columns.Columns...)
 			}
 		}
 
 		if iq.columns.Empty() || len(enqueuedValue) == len(iq.columns.Columns) {
-			arguments = append(arguments, enqueuedValue...)
-
-			l := len(enqueuedValue)
-			placeholders := make([]exql.Fragment, l)
-			for i := 0; i < l; i++ {
+			placeholders := make([]exql.Fragment, len(enqueuedValue))
+			for i := range enqueuedValue {
 				placeholders[i] = exql.Raw("?")
 			}
 			values = append(values, exql.ValuesGroup(placeholders...))
+			args = append(args, enqueuedValue...)
 		}
 	}
-
-	return exql.ValuesGroups(values...), arguments, nil
+	return exql.ValuesGroups(values...), args, nil
 }
 
 func (iq *inserterQuery) statement() *exql.Statement {
