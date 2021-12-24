@@ -194,6 +194,36 @@ type Selector interface {
 
 // Inserter represents a SQL query builder for the INSERT statement.
 type Inserter interface {
+	// Columns defines which columns that we are going to provide values for.
+	//
+	// The Values() should be called along with Columns() to provide actual values
+	// to be inserted:
+	//
+	//   q.Columns("name", "last_name").Values("María", "Méndez")
+	Columns(columns ...interface{}) Inserter
+	// Values constructs a VALUES clause for values to be inserted as designated
+	// columns.
+	//
+	// Example:
+	//
+	//   q.Columns("name", "last_name").Values("María", "Méndez")
+	//
+	// The Columns() is not required if a map is passed as key-value pairs:
+	//
+	//   q.Values(map[string]string{
+	//	     "name":      "María",
+	//	     "last_name": "Méndez",
+	//   })
+	Values(values ...interface{}) Inserter
+
+	// Returning constructs a RETURNING clause to specify which columns should be
+	// returned upon successful insertion.
+	Returning(columns ...interface{}) Inserter
+
+	// String returns a complied SQL query string.
+	String() string
+	// Arguments returns the arguments that are prepared for this query.
+	Arguments() []interface{}
 }
 
 // Updater represents a SQL query builder for the UPDATE statement.

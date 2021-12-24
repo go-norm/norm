@@ -37,3 +37,10 @@ func (b *sqlBuilder) SelectFrom(tables ...interface{}) norm.Selector {
 	}
 	return sel.From(tables...)
 }
+
+func (b *sqlBuilder) InsertInto(table string) norm.Inserter {
+	ins := &inserter{
+		builder: b,
+	}
+	return ins.Into(table)
+}
