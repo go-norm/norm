@@ -420,6 +420,18 @@ func mapToColumnsAndValues(item interface{}, options *MapOptions) ([]string, []i
 	}
 
 	switch itemT.Kind() {
+	case reflect.Map:
+		nfields := itemV.Len()
+		fv.values = make([]interface{}, nfields)
+		fv.fields = make([]string, nfields)
+		mkeys := itemV.MapKeys()
+
+		for i, keyV := range mkeys {
+			valv := itemV.MapIndex(keyV)
+			fv.fields[i] = fmt.Sprintf("%v", keyV.Interface())
+			fv.values[i] = valv.Interface()
+		}
+
 	case reflect.Struct:
 		fieldMap := defaultMapper.TypeMap(itemT).Names
 		nfields := len(fieldMap)
@@ -471,17 +483,6 @@ func mapToColumnsAndValues(item interface{}, options *MapOptions) ([]string, []i
 			fv.values = append(fv.values, value)
 		}
 
-	case reflect.Map:
-		nfields := itemV.Len()
-		fv.values = make([]interface{}, nfields)
-		fv.fields = make([]string, nfields)
-		mkeys := itemV.MapKeys()
-
-		for i, keyV := range mkeys {
-			valv := itemV.MapIndex(keyV)
-			fv.fields[i] = fmt.Sprintf("%v", keyV.Interface())
-			fv.values[i] = valv.Interface()
-		}
 	default:
 		return nil, nil, errors.New("the type must be a map or struct or a point to a map or struct")
 	}
