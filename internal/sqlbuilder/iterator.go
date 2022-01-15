@@ -106,6 +106,25 @@ func scanResult(typer adapter.Typer, rows adapter.Rows, typ reflect.Type, column
 	}
 
 	switch typ.Kind() {
+	case reflect.Map:
+		values := make([]interface{}, len(columns))
+		for i := range values {
+			if typ.Elem().Kind() == reflect.Interface {
+				values[i] = new(interface{})
+			} else {
+				values[i] = reflect.New(typ.Elem()).Interface()
+			}
+		}
+
+		if err = rows.Scan(values...); err != nil {
+			return reflect.Value{}, errors.Wrap(err, "scan")
+		}
+
+		for i, column := range columns {
+			result.SetMapIndex(reflect.ValueOf(column), reflect.Indirect(reflect.ValueOf(values[i])))
+		}
+		return result, nil
+
 	case reflect.Struct:
 		values := make([]interface{}, len(columns))
 		typeMap := defaultMapper.TypeMap(typ)
@@ -123,25 +142,6 @@ func scanResult(typer adapter.Typer, rows adapter.Rows, typ reflect.Type, column
 
 		if err = rows.Scan(values...); err != nil {
 			return reflect.Value{}, errors.Wrap(err, "scan")
-		}
-		return result, nil
-
-	case reflect.Map:
-		values := make([]interface{}, len(columns))
-		for i := range values {
-			if typ.Elem().Kind() == reflect.Interface {
-				values[i] = new(interface{})
-			} else {
-				values[i] = reflect.New(typ.Elem()).Interface()
-			}
-		}
-
-		if err = rows.Scan(values...); err != nil {
-			return reflect.Value{}, errors.Wrap(err, "scan")
-		}
-
-		for i, column := range columns {
-			result.SetMapIndex(reflect.ValueOf(column), reflect.Indirect(reflect.ValueOf(values[i])))
 		}
 		return result, nil
 	}
