@@ -52,8 +52,8 @@ func ExpandQuery(query string, args []interface{}) (string, []interface{}, error
 	return expandedQuery.String(), expandedArgs, nil
 }
 
-// expandArgument derives the placeholder string and wrapped list of arguments
-// from the given argument.
+// expandArgument derives the placeholder and wrapped list of arguments from the
+// given argument.
 func expandArgument(arg interface{}) (placeholder string, args []interface{}, err error) {
 	if arg == nil {
 		return "NULL", nil, nil
@@ -107,7 +107,7 @@ func expandArgument(arg interface{}) (placeholder string, args []interface{}, er
 	return placeholder, args, nil
 }
 
-// expandCompilable derives the placeholder string and its arguments from the
+// expandCompilable derives the placeholder and its arguments from the
 // compilable.
 func expandCompilable(c compilable) (placeholder string, args []interface{}, err error) {
 	placeholder, err = c.Compile()
@@ -122,7 +122,7 @@ func expandCompilable(c compilable) (placeholder string, args []interface{}, err
 	return "(" + placeholder + ")", args, nil
 }
 
-// expandFuncExpr derives the placeholder string and its arguments from the
+// expandFuncExpr derives the placeholder and its arguments from the
 // expr.FuncExpr.
 func expandFuncExpr(e *expr.FuncExpr) (placeholder string, args []interface{}, err error) {
 	fnName, fnArgs := e.Name(), e.Arguments()

@@ -583,9 +583,9 @@ func parseConditionExpressions(t *exql.Template, exprs interface{}) (conditions 
 			} else {
 				val = v[1]
 			}
-			conditions, args, err = parseConstraintsExpression(t, expr.NewConstraint(s, val))
+			conditions, args, err = parseConstraintExpression(t, expr.NewConstraint(s, val))
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "convert []interface{} to conditions")
+				return nil, nil, errors.Wrap(err, "parse constraint expression for []interface{}")
 			}
 			return conditions, args, nil
 		}
@@ -639,9 +639,9 @@ func parseConditionExpressions(t *exql.Template, exprs interface{}) (conditions 
 		return conditions, args, nil
 
 	case expr.Constraint:
-		conditions, args, err = parseConstraintsExpression(t, v)
+		conditions, args, err = parseConstraintExpression(t, v)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "convert expr.Constraint to conditions")
+			return nil, nil, errors.Wrap(err, "parse constraint expression for expr.Constraint")
 		}
 		return conditions, args, nil
 
@@ -680,25 +680,24 @@ func parseConditionExpressions(t *exql.Template, exprs interface{}) (conditions 
 	return nil, nil, errors.Errorf("unsupported expression type %T", exprs)
 }
 
-// todo
-func parseConstraintsExpression(t *exql.Template, expression interface{}) (constraints []exql.Fragment, args []interface{}, err error) {
+// parseConstraintExpression parses given constraint expressions into
+// constraints and their list of arguments.
+func parseConstraintExpression(t *exql.Template, expression interface{}) (constraints []exql.Fragment, args []interface{}, err error) {
 	switch v := expression.(type) {
 	case *expr.RawExpr:
-		q, qArgs, err := ExpandQuery(v.Raw(), v.Arguments())
+		r, rArgs, err := ExpandQuery(v.Raw(), v.Arguments())
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "expand query for *expr.RawExpr")
 		}
 
-		cv := exql.ColumnValue(q, expr.ComparisonCustom, nil)
-		constraints = append(constraints, cv)
-		args = append(args, qArgs...)
-		return constraints, args, nil
+		cv := exql.ColumnValue(r, expr.ComparisonCustom, nil)
+		return []exql.Fragment{cv}, rArgs, nil
 
 	case expr.Constraints:
 		for _, constraint := range v.Constraints() {
-			conds, condsArgs, err := parseConstraintsExpression(t, constraint)
+			conds, condsArgs, err := parseConstraintExpression(t, constraint)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "convert expr.Constraints to column values")
+				return nil, nil, errors.Wrap(err, "parse constraint expression for expr.Constraints")
 			}
 
 			constraints = append(constraints, conds...)
@@ -763,13 +762,14 @@ func parseConstraintsExpression(t *exql.Template, expression interface{}) (const
 			return nil, nil, errors.Errorf("unsupported expr.Constraint.Value() type %T", val)
 		}
 
-		constraints = append(constraints, exql.ColumnValue(column, operator, value))
-		return constraints, args, nil
+		cv := exql.ColumnValue(column, operator, value)
+		return []exql.Fragment{cv}, args, nil
 	}
 	return nil, nil, errors.Errorf("unsupported expression type %T", expression)
 }
 
-// todo
+// expandComparison derives the operator, placeholder and its arguments from the
+// expr.Comparison.
 func expandComparison(t *exql.Template, cmp *expr.Comparison) (operator, placeholder string, args []interface{}, err error) {
 	op := cmp.Operator()
 	operator = t.Operator(op)
@@ -816,7 +816,7 @@ func expandComparison(t *exql.Template, cmp *expr.Comparison) (operator, placeho
 		case true:
 			placeholder = "TRUE"
 		default:
-			return "", "", nil, errors.Errorf("unsupported value type %T for expr.ComparisonIs", v)
+			return "", "", nil, errors.Errorf("unsupported value type %T for expr.ComparisonIs or expr.ComparisonIsNot", v)
 		}
 
 	default:
