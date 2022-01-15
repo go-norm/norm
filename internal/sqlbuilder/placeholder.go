@@ -45,36 +45,43 @@ func ExpandQuery(query string, args []interface{}) (string, []interface{}, error
 			return "", nil, errors.Wrap(err, "expand argument")
 		}
 
-		if p != "" {
-			expandedQuery.WriteString(p)
-		} else {
-			expandedQuery.WriteByte(query[i])
-		}
+		expandedQuery.WriteString(p)
 		expandedArgs = append(expandedArgs, pArgs...)
 		args = args[1:]
 	}
 	return expandedQuery.String(), expandedArgs, nil
 }
 
-// todo
-// expandArgument expands the placeholder string and wrapped list of arguments
-// from the given argument. It returns an empty string for the placeholder and a
-// slice containing the original argument if expansion is not possible.
+// expandArgument derives the placeholder string and wrapped list of arguments
+// from the given argument.
 func expandArgument(arg interface{}) (placeholder string, args []interface{}, err error) {
-	vals, isSlice := toArguments(arg)
-	if isSlice {
-		if len(vals) == 0 {
+	if arg == nil {
+		return "NULL", nil, nil
+	}
+
+	if valuer, ok := arg.(driver.Valuer); ok {
+		return "?", []interface{}{valuer}, nil
+	}
+
+	varg := reflect.ValueOf(arg)
+	if varg.Type().Kind() == reflect.Slice {
+		// Byte slice preserves the original type
+		if varg.Type().Elem().Kind() == reflect.Uint8 {
+			return "?", []interface{}{arg}, nil
+		}
+		if varg.Len() == 0 {
 			return "(NULL)", nil, nil
+		}
+
+		vals := make([]interface{}, varg.Len())
+		for i := range vals {
+			vals[i] = varg.Index(i).Interface()
 		}
 		placeholder = "(?" + strings.Repeat(", ?", len(vals)-1) + ")"
 		return placeholder, vals, nil
 	}
 
-	if len(vals) == 0 {
-		return "NULL", nil, nil
-	}
-
-	switch v := vals[0].(type) {
+	switch v := arg.(type) {
 	case compilable:
 		q, err := v.Compile()
 		if err != nil {
@@ -103,34 +110,5 @@ func expandArgument(arg interface{}) (placeholder string, args []interface{}, er
 		}
 		return placeholder, args, nil
 	}
-	return "", vals, nil
-}
-
-// todo
-// toArguments wraps the given value into an array of interfaces that can be
-// used to pass as query arguments.
-//
-// The `isSlice` returns true when the value is a slice. The returned arguments
-// list would only contain one element when the `isSlice` returns false.
-func toArguments(v interface{}) (args []interface{}, isSlice bool) {
-	if v == nil {
-		return nil, false
-	}
-
-	if valuer, ok := v.(driver.Valuer); ok {
-		return []interface{}{valuer}, false
-	}
-
-	vv := reflect.ValueOf(v)
-
-	// Non-slice and byte slice preserves the original type
-	if vv.Type().Kind() != reflect.Slice || vv.Type().Elem().Kind() == reflect.Uint8 {
-		return []interface{}{v}, false
-	}
-
-	args = make([]interface{}, vv.Len())
-	for i := range args {
-		args[i] = vv.Index(i).Interface()
-	}
-	return args, true
+	return "?", []interface{}{arg}, nil
 }
