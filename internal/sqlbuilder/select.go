@@ -7,6 +7,7 @@ package sqlbuilder
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -54,7 +55,7 @@ func (sel *selector) From(tables ...interface{}) norm.Selector {
 		return sel
 	}
 	return sel.frame(func(sq *selectorQuery) error {
-		cs, args, err := toColumns(tables)
+		cs, args, err := parseColumnExpressions(tables)
 		if err != nil {
 			return errors.Wrap(err, "From: convert to columns")
 		}
@@ -128,7 +129,7 @@ func (sel *selector) GroupBy(columns ...interface{}) norm.Selector {
 		return sel
 	}
 	return sel.frame(func(sq *selectorQuery) error {
-		cs, args, err := toColumns(columns)
+		cs, args, err := parseColumnExpressions(columns)
 		if err != nil {
 			return errors.Wrap(err, "GroupBy: convert to columns")
 		}
@@ -163,20 +164,13 @@ func (sel *selector) OrderBy(columns ...interface{}) norm.Selector {
 				orderByArgs = append(orderByArgs, rArgs...)
 
 			case *expr.FuncExpr:
-				fnName, fnArgs := v.Name(), v.Arguments()
-				if len(fnArgs) == 0 {
-					fnName = fnName + "()"
-				} else {
-					fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
-				}
-
-				placeholder, args, err := ExpandQuery(fnName, fnArgs)
+				fnName, fnArgs, err := expandFuncExpr(v)
 				if err != nil {
-					return errors.Wrap(err, "OrderBy: expand query for *expr.FuncExpr")
+					return errors.Wrap(err, "OrderBy: expand *expr.FuncExpr")
 				}
 
-				sc = exql.SortColumn(exql.Raw(placeholder))
-				orderByArgs = append(orderByArgs, args...)
+				sc = exql.SortColumn(exql.Raw(fnName))
+				orderByArgs = append(orderByArgs, fnArgs...)
 
 			case string:
 				if strings.HasPrefix(v, "-") {
@@ -293,7 +287,7 @@ func (sel *selector) Using(columns ...interface{}) norm.Selector {
 			return errors.New(`Using: cannot use multiple Using() or On() with the same JOIN expression`)
 		}
 
-		cs, args, err := toColumns(columns)
+		cs, args, err := parseColumnExpressions(columns)
 		if err != nil {
 			return errors.Wrap(err, "Using: convert to columns")
 		}
@@ -465,7 +459,7 @@ func (sq *selectorQuery) arguments() []interface{} {
 }
 
 func (sq *selectorQuery) pushColumns(exprs []interface{}) error {
-	cs, args, err := toColumns(exprs)
+	cs, args, err := parseColumnExpressions(exprs)
 	if err != nil {
 		return errors.Wrap(err, "convert to columns")
 	}
@@ -518,4 +512,48 @@ func (sq *selectorQuery) statement() *exql.Statement {
 	}
 	stmt.SetAmend(sq.amendFn)
 	return stmt
+}
+
+// parseColumnExpressions parses column expressions into columns and their list
+// of arguments.
+func parseColumnExpressions(exprs []interface{}) (columns []exql.Fragment, args []interface{}, err error) {
+	columns = make([]exql.Fragment, len(exprs))
+	for i := range exprs {
+		switch v := exprs[i].(type) {
+		case compilable:
+			q, qArgs, err := expandCompilable(v)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand compilable")
+			}
+
+			columns[i] = exql.Raw(q)
+			args = append(args, qArgs...)
+
+		case *expr.FuncExpr:
+			fnName, fnArgs, err := expandFuncExpr(v)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand *expr.FuncExpr")
+			}
+
+			columns[i] = exql.Raw(fnName)
+			args = append(args, fnArgs...)
+
+		case *expr.RawExpr:
+			r, rArgs, err := ExpandQuery(v.Raw(), v.Arguments())
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand query for *expr.RawExpr")
+			}
+
+			columns[i] = exql.Raw(r)
+			args = append(args, rArgs...)
+
+		case string:
+			columns[i] = exql.Column(v)
+		case int:
+			columns[i] = exql.Raw(strconv.Itoa(v))
+		default:
+			return nil, nil, errors.Errorf("unsupported type %T", v)
+		}
+	}
+	return columns, args, nil
 }

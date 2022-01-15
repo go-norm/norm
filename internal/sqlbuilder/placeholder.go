@@ -83,32 +83,57 @@ func expandArgument(arg interface{}) (placeholder string, args []interface{}, er
 
 	switch v := arg.(type) {
 	case compilable:
-		q, err := v.Compile()
+		placeholder, args, err = expandCompilable(v)
 		if err != nil {
-			return "", nil, errors.Wrap(err, "compile")
+			return "", nil, errors.Wrap(err, "expand compilable")
 		}
-		placeholder = "(" + q + ")"
-		return placeholder, v.Arguments(), nil
 
 	case *expr.FuncExpr:
-		fnName, fnArgs := v.Name(), v.Arguments()
-		if len(fnArgs) == 0 {
-			fnName = fnName + "()"
-		} else {
-			fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
-		}
-		placeholder, args, err = ExpandQuery(fnName, fnArgs)
+		placeholder, args, err = expandFuncExpr(v)
 		if err != nil {
-			return "", nil, errors.Wrap(err, "expand query for *expr.FuncExpr")
+			return "", nil, errors.Wrap(err, "expand *expr.FuncExpr")
 		}
-		return placeholder, args, nil
 
 	case *expr.RawExpr:
 		placeholder, args, err = ExpandQuery(v.Raw(), v.Arguments())
 		if err != nil {
 			return "", nil, errors.Wrap(err, "expand query for *expr.RawExpr")
 		}
-		return placeholder, args, nil
+
+	default:
+		placeholder = "?"
+		args = []interface{}{arg}
 	}
-	return "?", []interface{}{arg}, nil
+	return placeholder, args, nil
+}
+
+// expandCompilable derives the placeholder string and its arguments from the
+// compilable.
+func expandCompilable(c compilable) (placeholder string, args []interface{}, err error) {
+	placeholder, err = c.Compile()
+	if err != nil {
+		return "", nil, errors.Wrap(err, "compile")
+	}
+
+	placeholder, args, err = ExpandQuery(placeholder, c.Arguments())
+	if err != nil {
+		return "", nil, errors.Wrap(err, "expand query")
+	}
+	return "(" + placeholder + ")", args, nil
+}
+
+// expandFuncExpr derives the placeholder string and its arguments from the
+// expr.FuncExpr.
+func expandFuncExpr(e *expr.FuncExpr) (placeholder string, args []interface{}, err error) {
+	fnName, fnArgs := e.Name(), e.Arguments()
+	if len(fnArgs) == 0 {
+		fnName = fnName + "()"
+	} else {
+		fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
+	}
+	placeholder, args, err = ExpandQuery(fnName, fnArgs)
+	if err != nil {
+		return "", nil, errors.Wrap(err, "expand query")
+	}
+	return placeholder, args, nil
 }

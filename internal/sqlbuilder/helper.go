@@ -7,73 +7,13 @@ package sqlbuilder
 
 import (
 	"database/sql/driver"
-	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
 
-	"unknwon.dev/norm"
 	"unknwon.dev/norm/expr"
 	"unknwon.dev/norm/internal/exql"
 )
-
-// todo
-func toColumns(exprs []interface{}) (columns []exql.Fragment, args []interface{}, err error) {
-	columns = make([]exql.Fragment, len(exprs))
-	args = []interface{}{}
-	for i := range exprs {
-		switch v := exprs[i].(type) {
-		case compilable:
-			q, err := v.Compile()
-			if err != nil {
-				return nil, nil, errors.Wrap(err, "compile")
-			}
-
-			q, qArgs, err := ExpandQuery(q, v.Arguments())
-			if err != nil {
-				return nil, nil, errors.Wrap(err, "expand query for compilable")
-			}
-
-			if _, ok := v.(norm.Selector); ok {
-				q = "(" + q + ")"
-			}
-			columns[i] = exql.Raw(q)
-			args = append(args, qArgs...)
-
-		case *expr.FuncExpr:
-			fnName, fnArgs := v.Name(), v.Arguments()
-			if len(fnArgs) == 0 {
-				fnName = fnName + "()"
-			} else {
-				fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
-			}
-			fnName, fnArgs, err = ExpandQuery(fnName, fnArgs)
-			if err != nil {
-				return nil, nil, errors.Wrap(err, "expand query for *expr.FuncExpr")
-			}
-
-			columns[i] = exql.Raw(fnName)
-			args = append(args, fnArgs...)
-
-		case *expr.RawExpr:
-			r, rArgs, err := ExpandQuery(v.Raw(), v.Arguments())
-			if err != nil {
-				return nil, nil, errors.Wrap(err, "expand query for *expr.RawExpr")
-			}
-
-			columns[i] = exql.Raw(r)
-			args = append(args, rArgs...)
-
-		case string:
-			columns[i] = exql.Column(v)
-		case int:
-			columns[i] = exql.Raw(strconv.Itoa(v))
-		default:
-			return nil, nil, errors.Errorf("unsupported type %T", v)
-		}
-	}
-	return columns, args, nil
-}
 
 // todo
 // toWhere converts the given conditions into an *exql.WhereFragment value.
@@ -127,33 +67,19 @@ func toWhere(t *exql.Template, conditions interface{}) (where *exql.WhereFragmen
 		return where, args, nil
 
 	case compilable:
-		q, err := v.Compile()
+		q, qArgs, err := expandCompilable(v)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "compile")
+			return nil, nil, errors.Wrap(err, "expand compilable")
 		}
 
-		q, qArgs, err := ExpandQuery(q, v.Arguments())
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "expand query for compilable")
-		}
-
-		if _, ok := v.(norm.Selector); ok {
-			q = "(" + q + ")"
-		}
 		where = exql.Where(exql.Raw(q))
 		args = append(args, qArgs...)
 		return where, args, nil
 
 	case *expr.FuncExpr:
-		fnName, fnArgs := v.Name(), v.Arguments()
-		if len(fnArgs) == 0 {
-			fnName = fnName + "()"
-		} else {
-			fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
-		}
-		fnName, fnArgs, err = ExpandQuery(fnName, fnArgs)
+		fnName, fnArgs, err := expandFuncExpr(v)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "expand query for *expr.FuncExpr")
+			return nil, nil, errors.Wrap(err, "expand *expr.FuncExpr")
 		}
 
 		where = exql.Where(exql.Raw(fnName))
@@ -293,17 +219,9 @@ func toConditions(t *exql.Template, expression interface{}) (conditions []exql.F
 
 		switch val := v.Value().(type) {
 		case *expr.FuncExpr:
-			fnName, fnArgs := val.Name(), val.Arguments()
-			if len(fnArgs) == 0 {
-				// A function with no arguments.
-				fnName = fnName + "()"
-			} else {
-				// A function with one or more arguments.
-				fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
-			}
-			fnName, fnArgs, err = ExpandQuery(fnName, fnArgs)
+			fnName, fnArgs, err := expandFuncExpr(val)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "expand query for *expr.FuncExpr")
+				return nil, nil, errors.Wrap(err, "expand *expr.FuncExpr")
 			}
 
 			value = exql.Raw(fnName)
