@@ -41,7 +41,7 @@ func compileStatement(t *exql.Template, adapter adapter.Adapter, stmt *exql.Stat
 
 	q, args, err = sqlbuilder.ExpandQuery(q, args)
 	if err != nil {
-		return "", nil, errors.Wrap(err, "preprocess")
+		return "", nil, errors.Wrap(err, "expand query")
 	}
 
 	q = adapter.FormatSQL(q)

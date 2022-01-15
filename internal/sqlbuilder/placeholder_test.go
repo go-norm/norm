@@ -55,7 +55,7 @@ func TestExpandQuery(t *testing.T) {
 			query:     "?",
 			args:      nil,
 			wantQuery: "?",
-			wantArgs:  []interface{}{},
+			wantArgs:  []interface{}(nil),
 		},
 		{
 			name:      "nil args",
@@ -195,4 +195,12 @@ func TestExpandQuery(t *testing.T) {
 			assert.Equal(t, test.wantArgs, gotArgs)
 		})
 	}
+}
+
+func defaultTemplate(t testing.TB) *exql.Template {
+	tmpl, err := exql.DefaultTemplate()
+	if err != nil {
+		t.Fatalf("Failed to get default template: %v", err)
+	}
+	return tmpl
 }

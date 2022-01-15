@@ -16,106 +16,124 @@ import (
 	"unknwon.dev/norm/expr"
 )
 
-// toArguments wraps the given value into an array of interfaces that can be
-// used to pass as query arguments.
-//
-// The `isSlice` returns true when the value is a slice. The returned arguments
-// list would only contain one element when the `isSlice` returns false.
-func toArguments(v interface{}) (args []interface{}, isSlice bool) {
-	if v == nil {
-		return nil, false
+// ExpandQuery flattens elements of the arguments list to their indivisible
+// forms (e.g. primitive types, []byte, driver.Valuer) and expands placeholders
+// ("?") in the query accordingly.
+func ExpandQuery(query string, args []interface{}) (string, []interface{}, error) {
+	// Quick path for queries without arguments
+	if len(args) == 0 {
+		return query, args, nil
 	}
 
-	if valuer, ok := v.(driver.Valuer); ok {
-		return []interface{}{valuer}, false
-	}
+	var expandedQuery bytes.Buffer
+	expandedArgs := make([]interface{}, 0, len(args))
+	for i := range query {
+		// Write out the rest of the query if no argument remaining
+		if len(args) == 0 {
+			expandedQuery.WriteString(query[i:])
+			break
+		}
 
-	vv := reflect.ValueOf(v)
+		// Only look for expanding placeholders and ignore others
+		if query[i] != '?' {
+			expandedQuery.WriteByte(query[i])
+			continue
+		}
 
-	// Non-slice and byte slice preserves the original type
-	if vv.Type().Kind() != reflect.Slice || vv.Type().Elem().Kind() == reflect.Uint8 {
-		return []interface{}{v}, false
-	}
+		p, pArgs, err := expandArgument(args[0])
+		if err != nil {
+			return "", nil, errors.Wrap(err, "expand argument")
+		}
 
-	args = make([]interface{}, vv.Len())
-	for i := range args {
-		args[i] = vv.Index(i).Interface()
+		expandedQuery.WriteString(p)
+		expandedArgs = append(expandedArgs, pArgs...)
+		args = args[1:]
 	}
-	return args, true
+	return expandedQuery.String(), expandedArgs, nil
 }
 
-// expandArgument expands the placeholder string and wrapped list of arguments
-// from the given argument. It returns an empty string for the placeholder and a
-// slice containing the original argument if expansion is not possible.
+// expandArgument derives the placeholder and wrapped list of arguments from the
+// given argument.
 func expandArgument(arg interface{}) (placeholder string, args []interface{}, err error) {
-	vals, isSlice := toArguments(arg)
-	if isSlice {
-		if len(vals) == 0 {
+	if arg == nil {
+		return "NULL", nil, nil
+	}
+
+	if valuer, ok := arg.(driver.Valuer); ok {
+		return "?", []interface{}{valuer}, nil
+	}
+
+	varg := reflect.ValueOf(arg)
+	if varg.Type().Kind() == reflect.Slice {
+		// Byte slice preserves the original type
+		if varg.Type().Elem().Kind() == reflect.Uint8 {
+			return "?", []interface{}{arg}, nil
+		}
+		if varg.Len() == 0 {
 			return "(NULL)", nil, nil
+		}
+
+		vals := make([]interface{}, varg.Len())
+		for i := range vals {
+			vals[i] = varg.Index(i).Interface()
 		}
 		placeholder = "(?" + strings.Repeat(", ?", len(vals)-1) + ")"
 		return placeholder, vals, nil
 	}
 
-	if len(vals) == 0 {
-		return "NULL", nil, nil
-	}
-
-	switch v := vals[0].(type) {
+	switch v := arg.(type) {
 	case compilable:
-		q, err := v.Compile()
+		placeholder, args, err = expandCompilable(v)
 		if err != nil {
-			return "", nil, errors.Wrap(err, "compile")
+			return "", nil, errors.Wrap(err, "expand compilable")
 		}
-		placeholder = "(" + q + ")"
-		return placeholder, v.Arguments(), nil
 
 	case *expr.FuncExpr:
-		fnName, fnArgs := v.Name(), v.Arguments()
-		if len(fnArgs) == 0 {
-			fnName = fnName + "()"
-		} else {
-			fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
-		}
-		placeholder, args, err = ExpandQuery(fnName, fnArgs)
+		placeholder, args, err = expandFuncExpr(v)
 		if err != nil {
-			return "", nil, errors.Wrap(err, "expand query for *expr.FuncExpr")
+			return "", nil, errors.Wrap(err, "expand *expr.FuncExpr")
 		}
-		return placeholder, args, nil
 
 	case *expr.RawExpr:
 		placeholder, args, err = ExpandQuery(v.Raw(), v.Arguments())
 		if err != nil {
 			return "", nil, errors.Wrap(err, "expand query for *expr.RawExpr")
 		}
-		return placeholder, args, nil
+
+	default:
+		placeholder = "?"
+		args = []interface{}{arg}
 	}
-	return "", vals, nil
+	return placeholder, args, nil
 }
 
-// ExpandQuery expands the query with given arguments with necessary
-// placeholders.
-func ExpandQuery(query string, args []interface{}) (string, []interface{}, error) {
-	var buf bytes.Buffer
-	argx := make([]interface{}, 0, len(args))
-	for i := range query {
-		if query[i] != '?' || len(args) == 0 {
-			buf.WriteByte(query[i])
-			continue
-		}
-
-		q, qArgs, err := expandArgument(args[0])
-		if err != nil {
-			return "", nil, errors.Wrap(err, "expand argument")
-		}
-
-		if q != "" {
-			buf.WriteString(q)
-		} else {
-			buf.WriteByte(query[i])
-		}
-		argx = append(argx, qArgs...)
-		args = args[1:]
+// expandCompilable derives the placeholder and its arguments from the
+// compilable.
+func expandCompilable(c compilable) (placeholder string, args []interface{}, err error) {
+	placeholder, err = c.Compile()
+	if err != nil {
+		return "", nil, errors.Wrap(err, "compile")
 	}
-	return buf.String(), argx, nil
+
+	placeholder, args, err = ExpandQuery(placeholder, c.Arguments())
+	if err != nil {
+		return "", nil, errors.Wrap(err, "expand query")
+	}
+	return "(" + placeholder + ")", args, nil
+}
+
+// expandFuncExpr derives the placeholder and its arguments from the
+// expr.FuncExpr.
+func expandFuncExpr(e *expr.FuncExpr) (placeholder string, args []interface{}, err error) {
+	fnName, fnArgs := e.Name(), e.Arguments()
+	if len(fnArgs) == 0 {
+		fnName = fnName + "()"
+	} else {
+		fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
+	}
+	placeholder, args, err = ExpandQuery(fnName, fnArgs)
+	if err != nil {
+		return "", nil, errors.Wrap(err, "expand query")
+	}
+	return placeholder, args, nil
 }

@@ -227,7 +227,7 @@ SELECT
 FROM "actions"
 WHERE
 	"user_id" = ?
-AND (FALSE OR "id" < ?)
+AND (FALSE OR ("id" < ?))
 AND repo_id IN (
 	SELECT
 		"repository"."id"

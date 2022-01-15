@@ -7,6 +7,8 @@ package sqlbuilder
 
 import (
 	"context"
+	"database/sql/driver"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -54,7 +56,7 @@ func (sel *selector) From(tables ...interface{}) norm.Selector {
 		return sel
 	}
 	return sel.frame(func(sq *selectorQuery) error {
-		cs, args, err := toColumns(tables)
+		cs, args, err := parseColumnExpressions(tables)
 		if err != nil {
 			return errors.Wrap(err, "From: convert to columns")
 		}
@@ -128,7 +130,7 @@ func (sel *selector) GroupBy(columns ...interface{}) norm.Selector {
 		return sel
 	}
 	return sel.frame(func(sq *selectorQuery) error {
-		cs, args, err := toColumns(columns)
+		cs, args, err := parseColumnExpressions(columns)
 		if err != nil {
 			return errors.Wrap(err, "GroupBy: convert to columns")
 		}
@@ -163,20 +165,13 @@ func (sel *selector) OrderBy(columns ...interface{}) norm.Selector {
 				orderByArgs = append(orderByArgs, rArgs...)
 
 			case *expr.FuncExpr:
-				fnName, fnArgs := v.Name(), v.Arguments()
-				if len(fnArgs) == 0 {
-					fnName = fnName + "()"
-				} else {
-					fnName = fnName + "(?" + strings.Repeat("?, ", len(fnArgs)-1) + ")"
-				}
-
-				placeholder, args, err := ExpandQuery(fnName, fnArgs)
+				fnName, fnArgs, err := expandFuncExpr(v)
 				if err != nil {
-					return errors.Wrap(err, "OrderBy: expand query for *expr.FuncExpr")
+					return errors.Wrap(err, "OrderBy: expand *expr.FuncExpr")
 				}
 
-				sc = exql.SortColumn(exql.Raw(placeholder))
-				orderByArgs = append(orderByArgs, args...)
+				sc = exql.SortColumn(exql.Raw(fnName))
+				orderByArgs = append(orderByArgs, fnArgs...)
 
 			case string:
 				if strings.HasPrefix(v, "-") {
@@ -267,13 +262,13 @@ func (sel *selector) On(conds ...interface{}) norm.Selector {
 			)
 		}
 
-		where, args, err := toWhere(sel.Builder().Template, conds)
+		conds, condsArgs, err := parseConditionExpressions(sel.Builder().Template, conds)
 		if err != nil {
-			return errors.Wrap(err, "convert to WHERE clause")
+			return errors.Wrap(err, "parse condition expressions")
 		}
 
-		lastJoin.On = exql.On(where.Conditions...)
-		sq.joinsArgs = append(sq.joinsArgs, args...)
+		lastJoin.On = exql.On(conds...)
+		sq.joinsArgs = append(sq.joinsArgs, condsArgs...)
 		return nil
 	})
 }
@@ -293,7 +288,7 @@ func (sel *selector) Using(columns ...interface{}) norm.Selector {
 			return errors.New(`Using: cannot use multiple Using() or On() with the same JOIN expression`)
 		}
 
-		cs, args, err := toColumns(columns)
+		cs, args, err := parseColumnExpressions(columns)
 		if err != nil {
 			return errors.Wrap(err, "Using: convert to columns")
 		}
@@ -465,7 +460,7 @@ func (sq *selectorQuery) arguments() []interface{} {
 }
 
 func (sq *selectorQuery) pushColumns(exprs []interface{}) error {
-	cs, args, err := toColumns(exprs)
+	cs, args, err := parseColumnExpressions(exprs)
 	if err != nil {
 		return errors.Wrap(err, "convert to columns")
 	}
@@ -484,17 +479,17 @@ func (sq *selectorQuery) pushColumns(exprs []interface{}) error {
 	return nil
 }
 
-func (sq *selectorQuery) and(t *exql.Template, conds ...interface{}) error {
-	where, whereArgs, err := toWhere(t, conds)
+func (sq *selectorQuery) and(t *exql.Template, conditions ...interface{}) error {
+	conds, condsArgs, err := parseConditionExpressions(t, conditions)
 	if err != nil {
-		return errors.Wrap(err, "convert to WHERE clause")
+		return errors.Wrap(err, "parse condition expressions")
 	}
 
 	if sq.where == nil {
 		sq.where, sq.whereArgs = exql.Where(), []interface{}{}
 	}
-	sq.where.Append(where.Conditions...)
-	sq.whereArgs = append(sq.whereArgs, whereArgs...)
+	sq.where.Append(conds...)
+	sq.whereArgs = append(sq.whereArgs, condsArgs...)
 	return nil
 }
 
@@ -518,4 +513,314 @@ func (sq *selectorQuery) statement() *exql.Statement {
 	}
 	stmt.SetAmend(sq.amendFn)
 	return stmt
+}
+
+// parseColumnExpressions parses given column expressions into columns and their
+// list of arguments.
+func parseColumnExpressions(exprs []interface{}) (columns []exql.Fragment, args []interface{}, err error) {
+	columns = make([]exql.Fragment, len(exprs))
+	for i := range exprs {
+		switch v := exprs[i].(type) {
+		case compilable:
+			q, qArgs, err := expandCompilable(v)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand compilable")
+			}
+
+			columns[i] = exql.Raw(q)
+			args = append(args, qArgs...)
+
+		case *expr.FuncExpr:
+			fnName, fnArgs, err := expandFuncExpr(v)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand *expr.FuncExpr")
+			}
+
+			columns[i] = exql.Raw(fnName)
+			args = append(args, fnArgs...)
+
+		case *expr.RawExpr:
+			r, rArgs, err := ExpandQuery(v.Raw(), v.Arguments())
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand query for *expr.RawExpr")
+			}
+
+			columns[i] = exql.Raw(r)
+			args = append(args, rArgs...)
+
+		case string:
+			columns[i] = exql.Column(v)
+		case int:
+			columns[i] = exql.Raw(strconv.Itoa(v))
+		default:
+			return nil, nil, errors.Errorf("unsupported type %T", v)
+		}
+	}
+	return columns, args, nil
+}
+
+// parseConditionExpressions parses given condition expressions into conditions
+// and their list of arguments.
+func parseConditionExpressions(t *exql.Template, exprs interface{}) (conditions []exql.Fragment, args []interface{}, err error) {
+	switch v := exprs.(type) {
+	case []interface{}:
+		if len(v) == 0 {
+			return nil, []interface{}{}, nil
+		}
+
+		if s, ok := v[0].(string); ok {
+			if strings.ContainsAny(s, "?") || len(v) == 1 {
+				s, args, err = ExpandQuery(s, v[1:])
+				if err != nil {
+					return nil, nil, errors.Wrap(err, "expand query for []interface{}")
+				}
+				return []exql.Fragment{exql.Raw(s)}, args, nil
+			}
+
+			var val interface{}
+			if len(v) > 2 {
+				val = v[1:]
+			} else {
+				val = v[1]
+			}
+			conditions, args, err = parseConstraintExpression(t, expr.NewConstraint(s, val))
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "parse constraint expression for []interface{}")
+			}
+			return conditions, args, nil
+		}
+
+		for i := range v {
+			conds, condsArgs, err := parseConditionExpressions(t, v[i])
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "parse condition expressions")
+			}
+			if len(conds) == 0 {
+				continue
+			}
+			conditions = append(conditions, conds...)
+			args = append(args, condsArgs...)
+		}
+		return conditions, args, nil
+
+	case compilable:
+		q, qArgs, err := expandCompilable(v)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "expand compilable")
+		}
+		return []exql.Fragment{exql.Raw(q)}, qArgs, nil
+
+	case *expr.FuncExpr:
+		fnName, fnArgs, err := expandFuncExpr(v)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "expand *expr.FuncExpr")
+		}
+		return []exql.Fragment{exql.Raw(fnName)}, fnArgs, nil
+
+	case *expr.RawExpr:
+		r, rArgs, err := ExpandQuery(v.Raw(), v.Arguments())
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "expand query for *expr.RawExpr")
+		}
+		return []exql.Fragment{exql.Raw(r)}, rArgs, nil
+
+	case expr.Constraints:
+		for _, c := range v.Constraints() {
+			conds, condsArgs, err := parseConditionExpressions(t, c)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "parse condition expressions")
+			}
+			if len(conds) == 0 {
+				continue
+			}
+			conditions = append(conditions, conds...)
+			args = append(args, condsArgs...)
+		}
+		return conditions, args, nil
+
+	case expr.Constraint:
+		conditions, args, err = parseConstraintExpression(t, v)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "parse constraint expression for expr.Constraint")
+		}
+		return conditions, args, nil
+
+	case expr.LogicalExpr:
+		// CAUTION: This case must be after "expr.Constraints" to avoid infinite loop on
+		// `expr.Cond` which satisfies both.
+
+		for _, e := range v.Expressions() {
+			conds, condsArgs, err := parseConditionExpressions(t, e)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "parse condition expressions")
+			}
+			if len(conds) == 0 {
+				continue
+			}
+			conditions = append(conditions, conds...)
+			args = append(args, condsArgs...)
+		}
+
+		switch v.Operator() {
+		case expr.LogicalNone, expr.LogicalAnd:
+			conditions = []exql.Fragment{exql.And(conditions...)}
+		case expr.LogicalOr:
+			conditions = []exql.Fragment{exql.Or(conditions...)}
+		default:
+			return nil, nil, errors.Errorf("unexpected logical operator %q", v.Operator())
+		}
+		return conditions, args, nil
+
+	case exql.Fragment:
+		return []exql.Fragment{v}, args, nil
+
+	case string, int:
+		return []exql.Fragment{exql.Value(v)}, args, nil
+	}
+	return nil, nil, errors.Errorf("unsupported expression type %T", exprs)
+}
+
+// parseConstraintExpression parses given constraint expressions into
+// constraints and their list of arguments.
+func parseConstraintExpression(t *exql.Template, expression interface{}) (constraints []exql.Fragment, args []interface{}, err error) {
+	switch v := expression.(type) {
+	case *expr.RawExpr:
+		r, rArgs, err := ExpandQuery(v.Raw(), v.Arguments())
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "expand query for *expr.RawExpr")
+		}
+
+		cv := exql.ColumnValue(r, expr.ComparisonCustom, nil)
+		return []exql.Fragment{cv}, rArgs, nil
+
+	case expr.Constraints:
+		for _, constraint := range v.Constraints() {
+			conds, condsArgs, err := parseConstraintExpression(t, constraint)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "parse constraint expression for expr.Constraints")
+			}
+
+			constraints = append(constraints, conds...)
+			args = append(args, condsArgs...)
+		}
+		return constraints, args, nil
+
+	case expr.Constraint:
+		var column string
+		var operator interface{} = expr.ComparisonEqual
+		var value exql.Fragment
+
+		switch key := v.Key().(type) {
+		case string:
+			chunks := strings.SplitN(strings.TrimSpace(key), " ", 2)
+			column = chunks[0]
+			if len(chunks) > 1 {
+				operator = chunks[1]
+			}
+
+		case *expr.RawExpr:
+			column = key.Raw()
+			args = append(args, key.Arguments()...)
+
+		default:
+			return nil, nil, errors.Errorf("unsupported expr.Constraint.Key() type %T", key)
+		}
+
+		switch val := v.Value().(type) {
+		case *expr.FuncExpr:
+			fnName, fnArgs, err := expandFuncExpr(val)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand *expr.FuncExpr")
+			}
+
+			value = exql.Raw(fnName)
+			args = append(args, fnArgs...)
+
+		case *expr.RawExpr:
+			r, rArgs, err := ExpandQuery(val.Raw(), val.Arguments())
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand query for *expr.RawExpr")
+			}
+
+			value = exql.Raw(r)
+			args = append(args, rArgs...)
+
+		case driver.Valuer:
+			value = exql.Raw("?")
+			args = append(args, val)
+
+		case *expr.Comparison:
+			cmpOp, cmpPlaceholder, cmpArgs, err := expandComparison(t, val)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "expand comparison")
+			}
+			operator = cmpOp
+			value = exql.Raw(cmpPlaceholder)
+			args = append(args, cmpArgs...)
+
+		default:
+			return nil, nil, errors.Errorf("unsupported expr.Constraint.Value() type %T", val)
+		}
+
+		cv := exql.ColumnValue(column, operator, value)
+		return []exql.Fragment{cv}, args, nil
+	}
+	return nil, nil, errors.Errorf("unsupported expression type %T", expression)
+}
+
+// expandComparison derives the operator, placeholder and its arguments from the
+// expr.Comparison.
+func expandComparison(t *exql.Template, cmp *expr.Comparison) (operator, placeholder string, args []interface{}, err error) {
+	op := cmp.Operator()
+	operator = t.Operator(op)
+	placeholder = "?"
+	switch op {
+	case expr.ComparisonCustom:
+		operator = cmp.CustomOperator()
+		args = []interface{}{cmp.Value()}
+
+	case
+		expr.ComparisonEqual,
+		expr.ComparisonNotEqual,
+		expr.ComparisonLessThan,
+		expr.ComparisonGreaterThan,
+		expr.ComparisonLessThanOrEqualTo,
+		expr.ComparisonGreaterThanOrEqualTo,
+		expr.ComparisonLike,
+		expr.ComparisonNotLike,
+		expr.ComparisonRegexp,
+		expr.ComparisonNotRegexp:
+		args = []interface{}{cmp.Value()}
+
+	case expr.ComparisonBetween, expr.ComparisonNotBetween:
+		values := cmp.Value().([]interface{})
+		placeholder = "? AND ?"
+		args = []interface{}{values[0], values[1]}
+
+	case expr.ComparisonIn, expr.ComparisonNotIn:
+		values := cmp.Value().([]interface{})
+		if len(values) < 1 {
+			placeholder = "(NULL)"
+			break
+		}
+		placeholder = "(?" + strings.Repeat(", ?", len(values)-1) + ")"
+		args = values
+
+	case expr.ComparisonIs, expr.ComparisonIsNot:
+		v := cmp.Value()
+		switch v {
+		case nil:
+			placeholder = "NULL"
+		case false:
+			placeholder = "FALSE"
+		case true:
+			placeholder = "TRUE"
+		default:
+			return "", "", nil, errors.Errorf("unsupported value type %T for expr.ComparisonIs or expr.ComparisonIsNot", v)
+		}
+
+	default:
+		return "", "", nil, errors.Errorf("unexpected operator %v", op)
+	}
+	return operator, placeholder, args, nil
 }
