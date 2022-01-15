@@ -610,6 +610,23 @@ func TestSelector_Offset(t *testing.T) {
 	}
 }
 
+func TestSelector_Amend(t *testing.T) {
+	adapter := NewMockAdapter()
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	got := New(adapter, tmpl).
+		SelectFrom("users").
+		Amend(func(query string) string {
+			return query + " FOR UPDATE"
+		}).
+		String()
+	want := `SELECT * FROM "users" FOR UPDATE`
+	assert.Equal(t, want, got)
+}
+
 func TestSelector_Iterate(t *testing.T) {
 	ctx := context.Background()
 

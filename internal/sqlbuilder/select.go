@@ -323,6 +323,13 @@ func (sel *selector) Offset(n int) norm.Selector {
 	})
 }
 
+func (sel *selector) Amend(fn func(query string) string) norm.Selector {
+	return sel.frame(func(sq *selectorQuery) error {
+		sq.amendFn = fn
+		return nil
+	})
+}
+
 func (sel *selector) Iterate(ctx context.Context) norm.Iterator {
 	sq, err := sel.build()
 	if err != nil {

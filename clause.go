@@ -182,6 +182,9 @@ type Selector interface {
 	// A negative offset cancels any previously set offset.
 	Offset(n int) Selector
 
+	// Amend alters the query string just before executing it.
+	Amend(func(query string) string) Selector
+
 	// Iterate creates an Iterator to iterate over query results.
 	Iterate(ctx context.Context) Iterator
 	ResultMapper
