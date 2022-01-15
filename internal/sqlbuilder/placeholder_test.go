@@ -55,7 +55,7 @@ func TestExpandQuery(t *testing.T) {
 			query:     "?",
 			args:      nil,
 			wantQuery: "?",
-			wantArgs:  []interface{}{},
+			wantArgs:  []interface{}(nil),
 		},
 		{
 			name:      "nil args",

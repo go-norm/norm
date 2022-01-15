@@ -17,6 +17,7 @@ import (
 	"unknwon.dev/norm/internal/exql"
 )
 
+// todo
 func toColumns(exprs []interface{}) (columns []exql.Fragment, args []interface{}, err error) {
 	columns = make([]exql.Fragment, len(exprs))
 	args = []interface{}{}
@@ -74,6 +75,7 @@ func toColumns(exprs []interface{}) (columns []exql.Fragment, args []interface{}
 	return columns, args, nil
 }
 
+// todo
 // toWhere converts the given conditions into an *exql.WhereFragment value.
 func toWhere(t *exql.Template, conditions interface{}) (where *exql.WhereFragment, args []interface{}, err error) {
 	switch v := conditions.(type) {
@@ -242,6 +244,7 @@ func toWhere(t *exql.Template, conditions interface{}) (where *exql.WhereFragmen
 	return nil, nil, errors.Errorf("unsupported condition type %T", conditions)
 }
 
+// todo
 func toConditions(t *exql.Template, expression interface{}) (conditions []exql.Fragment, args []interface{}, err error) {
 	switch v := expression.(type) {
 	case *expr.RawExpr:
@@ -338,6 +341,7 @@ func toConditions(t *exql.Template, expression interface{}) (conditions []exql.F
 	return nil, nil, errors.Errorf("unsupported expression type %T", expression)
 }
 
+// todo
 func expandComparison(t *exql.Template, cmp *expr.Comparison) (operator, placeholder string, args []interface{}, err error) {
 	op := cmp.Operator()
 	operator = t.Operator(op)
