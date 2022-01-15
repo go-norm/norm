@@ -196,3 +196,11 @@ func TestExpandQuery(t *testing.T) {
 		})
 	}
 }
+
+func defaultTemplate(t testing.TB) *exql.Template {
+	tmpl, err := exql.DefaultTemplate()
+	if err != nil {
+		t.Fatalf("Failed to get default template: %v", err)
+	}
+	return tmpl
+}
