@@ -32,12 +32,12 @@ type SQL interface {
 	//
 	//   q := db.SelectFrom("users").Where(...)
 	SelectFrom(tables ...interface{}) Selector
-	// // InsertInto creates an Inserter targeted at the given table.
-	// //
-	// // Example:
-	// //
-	// //   q := db.InsertInto("users").Columns(...).Values(...)
-	// InsertInto(table string) Inserter
+	// InsertInto creates an Inserter targeted at the given table.
+	//
+	// Example:
+	//
+	//   q := db.InsertInto("users").Columns(...).Values(...)
+	InsertInto(table string) Inserter
 	// // Update creates an Updater targeted at the given table.
 	// //
 	// // Example:

@@ -361,16 +361,6 @@ func (sel *selector) String() string {
 	return sel.Builder().FormatSQL(q)
 }
 
-var _ compilable = (*selector)(nil)
-
-func (sel *selector) Compile() (string, error) {
-	sq, err := sel.build()
-	if err != nil {
-		return "", errors.Wrap(err, "build")
-	}
-	return sq.statement().Compile(sel.Builder().Template)
-}
-
 func (sel *selector) build() (*selectorQuery, error) {
 	sq, err := immutable.FastForward(sel)
 	if err != nil {
@@ -390,6 +380,16 @@ func (sel *selector) Arguments() []interface{} {
 		args[i] = sel.Builder().Typer().Valuer(args[i])
 	}
 	return args
+}
+
+var _ compilable = (*selector)(nil)
+
+func (sel *selector) Compile() (string, error) {
+	sq, err := sel.build()
+	if err != nil {
+		return "", errors.Wrap(err, "build")
+	}
+	return sq.statement().Compile(sel.Builder().Template)
 }
 
 var _ immutable.Immutable = (*selector)(nil)

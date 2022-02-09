@@ -197,6 +197,37 @@ type Selector interface {
 
 // Inserter represents a SQL query builder for the INSERT statement.
 type Inserter interface {
+	// Columns defines which columns that we are going to provide values for.
+	//
+	// The Values() should be called along with Columns() to provide actual values
+	// to be inserted:
+	//
+	//   q.Columns("first_name", "last_name", "age").Values("María", "Méndez", 18)
+	Columns(columns ...interface{}) Inserter
+	// Values constructs a VALUES clause for values to be inserted as designated
+	// columns.
+	//
+	// Example:
+	//
+	//   q.Columns("first_name", "last_name", "age").Values("María", "Méndez", 18)
+	Values(values ...interface{}) Inserter
+
+	// Returning constructs a RETURNING clause to specify which columns should be
+	// returned upon successful insertion.
+	Returning(columns ...interface{}) Inserter
+
+	// Amend alters the query string just before executing it.
+	Amend(func(query string) string) Inserter
+
+	// Iterate creates an Iterator to iterate over query results. This is only
+	// possible when using Returning().
+	Iterate(ctx context.Context) Iterator
+	ResultMapper
+
+	// String returns a complied SQL query string.
+	String() string
+	// Arguments returns the arguments that are prepared for this query.
+	Arguments() []interface{}
 }
 
 // Updater represents a SQL query builder for the UPDATE statement.
