@@ -202,21 +202,14 @@ type Inserter interface {
 	// The Values() should be called along with Columns() to provide actual values
 	// to be inserted:
 	//
-	//   q.Columns("name", "last_name").Values("María", "Méndez")
+	//   q.Columns("first_name", "last_name", "age").Values("María", "Méndez", 18)
 	Columns(columns ...interface{}) Inserter
 	// Values constructs a VALUES clause for values to be inserted as designated
 	// columns.
 	//
 	// Example:
 	//
-	//   q.Columns("name", "last_name").Values("María", "Méndez")
-	//
-	// The Columns() is not required if a map is passed as key-value pairs:
-	//
-	//   q.Values(map[string]string{
-	//       "name":      "María",
-	//       "last_name": "Méndez",
-	//   })
+	//   q.Columns("first_name", "last_name", "age").Values("María", "Méndez", 18)
 	Values(values ...interface{}) Inserter
 
 	// Returning constructs a RETURNING clause to specify which columns should be

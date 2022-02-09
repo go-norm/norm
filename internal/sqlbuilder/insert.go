@@ -7,16 +7,12 @@ package sqlbuilder
 
 import (
 	"context"
-	"fmt"
-	"reflect"
-	"sort"
 
 	"github.com/pkg/errors"
 
 	"unknwon.dev/norm"
 	"unknwon.dev/norm/internal/exql"
 	"unknwon.dev/norm/internal/immutable"
-	"unknwon.dev/norm/internal/reflectx"
 )
 
 var _ norm.Inserter = (*inserter)(nil)
@@ -68,7 +64,7 @@ func (ins *inserter) Values(values ...interface{}) norm.Inserter {
 		return ins
 	}
 	return ins.frame(func(iq *inserterQuery) error {
-		iq.queuedValues = append(iq.queuedValues, values)
+		iq.rawValuesGroups = append(iq.rawValuesGroups, values)
 		return nil
 	})
 }
@@ -186,9 +182,9 @@ type inserterQuery struct {
 	table   string
 	columns *exql.ColumnsFragment
 
-	queuedValues [][]interface{}
-	values       *exql.ValuesGroupsFragment
-	arguments    []interface{}
+	rawValuesGroups [][]interface{}
+	valuesGroups    *exql.ValuesGroupsFragment
+	arguments       []interface{}
 
 	returning *exql.ReturningFragment
 
@@ -198,48 +194,22 @@ type inserterQuery struct {
 // processValues iterate over each of queued list of values to generate value
 // groups and their arguments.
 func (iq *inserterQuery) processValues() error {
-	includeZeroAndNil := len(iq.queuedValues) > 1
-	vgs := make([]*exql.ValuesGroupFragment, 0, len(iq.queuedValues))
+	vgs := make([]*exql.ValuesGroupFragment, 0, len(iq.rawValuesGroups))
 	args := make([]interface{}, 0)
-	for _, queuedValue := range iq.queuedValues {
-		if len(queuedValue) == 1 {
-			cs, vs, err := mapToColumnsAndValues(queuedValue[0], includeZeroAndNil)
-			if err != nil {
-				return errors.Wrap(err, "map to columns and values")
+	for _, valuesGroup := range iq.rawValuesGroups {
+		vs := make([]exql.Fragment, 0, len(valuesGroup))
+		for i := range valuesGroup {
+			switch v := valuesGroup[i].(type) {
+			case exql.Fragment:
+				vs = append(vs, v)
+			default:
+				vs = append(vs, exql.Raw("?"))
+				args = append(args, v)
 			}
-			if iq.columns.Empty() {
-				columns := make([]*exql.ColumnFragment, 0, len(cs))
-				for _, name := range cs {
-					columns = append(columns, exql.Column(name))
-				}
-				iq.columns.Append(columns...)
-			}
-
-			vals := make([]exql.Fragment, 0, len(vs))
-			for i := range vs {
-				switch v := vs[i].(type) {
-				case *exql.RawFragment:
-					vals = append(vals, exql.Raw("DEFAULT"))
-				case *exql.ValueFragment:
-					vals = append(vals, v)
-				default:
-					vals = append(vals, exql.Raw("?"))
-					args = append(args, v)
-				}
-			}
-			vgs = append(vgs, exql.ValuesGroup(vals...))
 		}
-
-		if iq.columns.Empty() || len(queuedValue) == len(iq.columns.Columns) {
-			placeholders := make([]exql.Fragment, len(queuedValue))
-			for i := range queuedValue {
-				placeholders[i] = exql.Raw("?")
-			}
-			vgs = append(vgs, exql.ValuesGroup(placeholders...))
-			args = append(args, queuedValue...)
-		}
+		vgs = append(vgs, exql.ValuesGroup(vs...))
 	}
-	iq.values = exql.ValuesGroups(vgs...)
+	iq.valuesGroups = exql.ValuesGroups(vgs...)
 	iq.arguments = args
 	return nil
 }
@@ -249,108 +219,9 @@ func (iq *inserterQuery) statement() *exql.Statement {
 		Type:      exql.StatementInsert,
 		Table:     exql.Table(iq.table),
 		Columns:   iq.columns,
-		Values:    iq.values,
+		Values:    iq.valuesGroups,
 		Returning: iq.returning,
 	}
 	stmt.SetAmend(iq.amendFn)
 	return stmt
-}
-
-type hasIsZero interface {
-	IsZero() bool
-}
-
-type sortableFieldsWithValues struct {
-	fields []string
-	values []interface{}
-}
-
-func (fv *sortableFieldsWithValues) Len() int {
-	return len(fv.fields)
-}
-
-func (fv *sortableFieldsWithValues) Swap(i, j int) {
-	fv.fields[i], fv.fields[j] = fv.fields[j], fv.fields[i]
-	fv.values[i], fv.values[j] = fv.values[j], fv.values[i]
-}
-
-func (fv *sortableFieldsWithValues) Less(i, j int) bool {
-	return fv.fields[i] < fv.fields[j]
-}
-
-// mapToColumnsAndValues receives a pointer to map or struct and maps it to
-// columns and values.
-func mapToColumnsAndValues(p interface{}, includeZeroAndNil bool) ([]string, []interface{}, error) {
-	pv := reflect.ValueOf(p)
-	if !pv.IsValid() {
-		return nil, nil, errors.New("the value of map or struct is not valid")
-	}
-
-	pt := pv.Type()
-	if pt.Kind() == reflect.Ptr {
-		p = pv.Elem().Interface()
-		pv = reflect.ValueOf(p)
-		pt = pv.Type()
-	}
-
-	var fv sortableFieldsWithValues
-	switch pt.Kind() {
-	case reflect.Map:
-		nfields := pv.Len()
-		fv.values = make([]interface{}, nfields)
-		fv.fields = make([]string, nfields)
-		for i, key := range pv.MapKeys() {
-			fv.fields[i] = fmt.Sprintf("%v", key.Interface())
-			fv.values[i] = pv.MapIndex(key).Interface()
-		}
-
-	case reflect.Struct:
-		fieldMap := defaultMapper.TypeMap(pt).Names
-		nfields := len(fieldMap)
-		fv.values = make([]interface{}, 0, nfields)
-		fv.fields = make([]string, 0, nfields)
-		for _, fi := range fieldMap {
-			_, omitEmpty := fi.Options["omitempty"]
-
-			field := reflectx.FieldByIndexesReadOnly(pv, fi.Index)
-			if field.Kind() == reflect.Ptr && field.IsNil() {
-				if omitEmpty && !includeZeroAndNil {
-					continue
-				}
-				fv.fields = append(fv.fields, fi.Name)
-				if omitEmpty {
-					fv.values = append(fv.values, exql.Raw("DEFAULT"))
-				} else {
-					fv.values = append(fv.values, nil)
-				}
-				continue
-			}
-
-			value := field.Interface()
-
-			isZero := false
-			if t, ok := field.Interface().(hasIsZero); ok {
-				isZero = t.IsZero()
-			} else if field.Kind() == reflect.Array || field.Kind() == reflect.Slice {
-				isZero = field.Len() == 0
-			} else if reflect.DeepEqual(fi.Zero.Interface(), value) {
-				isZero = true
-			}
-			if isZero && omitEmpty && !includeZeroAndNil {
-				continue
-			}
-
-			fv.fields = append(fv.fields, fi.Name)
-			if isZero && omitEmpty {
-				value = exql.Raw("DEFAULT")
-			}
-			fv.values = append(fv.values, value)
-		}
-
-	default:
-		return nil, nil, errors.New("the type must be a map or struct or a point to a map or struct")
-	}
-
-	sort.Sort(&fv)
-	return fv.fields, fv.values, nil
 }
