@@ -91,3 +91,62 @@ func TestInserter(t *testing.T) {
 		})
 	}
 }
+
+func TestInserter_Amend(t *testing.T) {
+	adapter := NewMockAdapter()
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	got := New(adapter, tmpl).
+		InsertInto("users").
+		Columns("name").
+		Values("alice").
+		Amend(func(query string) string {
+			return query + " RETURNING id"
+		}).
+		String()
+	want := `INSERT INTO "users" ("name") VALUES (?) RETURNING id`
+	assert.Equal(t, want, got)
+}
+
+func TestInserter_Iterate(t *testing.T) {
+	ctx := context.Background()
+
+	// Mock two results
+	cursor := NewMockCursor()
+	cursor.ColumnsFunc.SetDefaultReturn([]string{"name", "email"}, nil)
+	cursor.NextFunc.PushReturn(true)
+	cursor.NextFunc.PushReturn(true)
+	cursor.ScanFunc.PushHook(func(dest ...interface{}) error {
+		assert.Len(t, dest, 2)
+		return nil
+	})
+
+	executor := NewMockExecutor()
+	executor.QueryFunc.SetDefaultReturn(cursor, nil)
+
+	typer := NewMockTyper()
+	typer.ValuerFunc.SetDefaultHook(func(v interface{}) interface{} {
+		return v
+	})
+
+	adapter := NewMockAdapter()
+	adapter.ExecutorFunc.SetDefaultReturn(executor)
+	adapter.TyperFunc.SetDefaultReturn(typer)
+	adapter.FormatSQLFunc.SetDefaultHook(func(sql string) string {
+		return exql.StripWhitespace(sql)
+	})
+
+	tmpl := defaultTemplate(t)
+	sqlb := New(adapter, tmpl)
+
+	dest := make([]map[string]interface{}, 0)
+	err := sqlb.InsertInto("users").All(ctx, &dest)
+	assert.NoError(t, err)
+	mockrequire.Called(t, cursor.ScanFunc)
+
+	err = sqlb.InsertInto("users").One(ctx, &dest)
+	assert.EqualError(t, err, sql.ErrNoRows.Error())
+}
