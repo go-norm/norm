@@ -64,7 +64,19 @@ func (ins *inserter) Values(values ...interface{}) norm.Inserter {
 		return ins
 	}
 	return ins.frame(func(iq *inserterQuery) error {
-		iq.rawValuesGroups = append(iq.rawValuesGroups, values)
+		vs := make([]exql.Fragment, 0, len(values))
+		args := make([]interface{}, 0, len(values))
+		for i := range values {
+			switch v := values[i].(type) {
+			case exql.Fragment:
+				vs = append(vs, v)
+			default:
+				vs = append(vs, exql.Raw("?"))
+				args = append(args, v)
+			}
+		}
+		iq.values = append(iq.values, exql.ValuesGroup(vs...))
+		iq.arguments = append(iq.arguments, args...)
 		return nil
 	})
 }
@@ -122,17 +134,11 @@ func (ins *inserter) String() string {
 }
 
 func (ins *inserter) build() (*inserterQuery, error) {
-	v, err := immutable.FastForward(ins)
+	iq, err := immutable.FastForward(ins)
 	if err != nil {
 		return nil, errors.Wrap(err, "construct *inserterQuery")
 	}
-
-	iq := v.(*inserterQuery)
-	err = iq.processValues()
-	if err != nil {
-		return nil, errors.Wrap(err, "process values")
-	}
-	return iq, nil
+	return iq.(*inserterQuery), nil
 }
 
 func (ins *inserter) Arguments() []interface{} {
@@ -182,36 +188,12 @@ type inserterQuery struct {
 	table   string
 	columns *exql.ColumnsFragment
 
-	rawValuesGroups [][]interface{}
-	valuesGroups    *exql.ValuesGroupsFragment
-	arguments       []interface{}
+	values    []*exql.ValuesGroupFragment
+	arguments []interface{}
 
 	returning *exql.ReturningFragment
 
 	amendFn func(string) string
-}
-
-// processValues iterate over each of queued list of values to generate value
-// groups and their arguments.
-func (iq *inserterQuery) processValues() error {
-	vgs := make([]*exql.ValuesGroupFragment, 0, len(iq.rawValuesGroups))
-	args := make([]interface{}, 0)
-	for _, valuesGroup := range iq.rawValuesGroups {
-		vs := make([]exql.Fragment, 0, len(valuesGroup))
-		for i := range valuesGroup {
-			switch v := valuesGroup[i].(type) {
-			case exql.Fragment:
-				vs = append(vs, v)
-			default:
-				vs = append(vs, exql.Raw("?"))
-				args = append(args, v)
-			}
-		}
-		vgs = append(vgs, exql.ValuesGroup(vs...))
-	}
-	iq.valuesGroups = exql.ValuesGroups(vgs...)
-	iq.arguments = args
-	return nil
 }
 
 func (iq *inserterQuery) statement() *exql.Statement {
@@ -219,7 +201,7 @@ func (iq *inserterQuery) statement() *exql.Statement {
 		Type:      exql.StatementInsert,
 		Table:     exql.Table(iq.table),
 		Columns:   iq.columns,
-		Values:    iq.valuesGroups,
+		Values:    exql.ValuesGroups(iq.values...),
 		Returning: iq.returning,
 	}
 	stmt.SetAmend(iq.amendFn)
