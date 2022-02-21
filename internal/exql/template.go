@@ -274,8 +274,10 @@ SELECT
 		defaultUpdate       = `
 UPDATE
   {{.Table | compile}}
-SET {{.ColumnValues | compile}}
-  {{.Where | compile}}
+SET
+  {{.ColumnValues | compile}}
+{{.Where | compile}}
+{{.Returning | compile}}
 `
 		defaultUsing = `
 {{if .Columns}}

@@ -37,7 +37,7 @@ type Selector interface {
 	// Subsequent calls to Columns() append more columns to the retrieval list (i.e.
 	// do not replace previously set columns).
 	Columns(columns ...interface{}) Selector
-	// From constructs a FROM clause for where the data to be retrieved from.
+	// From constructs the FROM clause for where the data to be retrieved from.
 	//
 	// It is typically used along with Columns():
 	//
@@ -51,7 +51,7 @@ type Selector interface {
 	//
 	//   q.Columns(...).From("users u").Where("u.name = ?", ...)
 	From(tables ...interface{}) Selector
-	// Distinct constructs a DISTINCT clause with given columns.
+	// Distinct constructs the DISTINCT clause with given columns.
 	//
 	// If no column is given, the DISTINCT applies to all columns:
 	//
@@ -68,7 +68,7 @@ type Selector interface {
 	//   q.From("users").As("u")
 	As(alias string) Selector
 
-	// Where constructs a WHERE clause to specify the conditions that columns must
+	// Where constructs the WHERE clause to specify the conditions that columns must
 	// match in order to be retrieved.
 	//
 	// It accepts raw strings and `fmt.Stringer` to define conditions and uses
@@ -93,7 +93,7 @@ type Selector interface {
 	//   q.Where("name = ?", "max").And("last_name = ?", "Doe")
 	//   q.And("last_name = ?", "Doe")
 	And(conds ...interface{}) Selector
-	// GroupBy constructs a GROUP BY clause.
+	// GroupBy constructs the GROUP BY clause.
 	//
 	// It defines which columns should be used to aggregate and group results:
 	//
@@ -102,7 +102,7 @@ type Selector interface {
 	//
 	// Subsequent calls to GroupBy() replace the previously set clause.
 	GroupBy(columns ...interface{}) Selector
-	// OrderBy constructs a ORDER BY clause.
+	// OrderBy constructs the ORDER BY clause.
 	//
 	// It is used to define which columns are going to be used to sort results, and
 	// results are in ascending order by default:
@@ -163,7 +163,7 @@ type Selector interface {
 	//   q.LeftJoin(...).Using("country_id")
 	Using(columns ...interface{}) Selector
 
-	// Limit constructs a LIMIT clause.
+	// Limit constructs the LIMIT clause.
 	//
 	// It is used to define the maximum number of rows to be returned from the
 	// query:
@@ -172,7 +172,7 @@ type Selector interface {
 	//
 	// A negative limit cancels any previously set limit.
 	Limit(n int) Selector
-	// Offset constructs a OFFSET clause.
+	// Offset constructs the OFFSET clause.
 	//
 	// It is used to define how many results are going to be skipped before starting to
 	// return results.
@@ -204,7 +204,7 @@ type Inserter interface {
 	//
 	//   q.Columns("first_name", "last_name", "age").Values("María", "Méndez", 18)
 	Columns(columns ...interface{}) Inserter
-	// Values constructs a VALUES clause for values to be inserted as designated
+	// Values constructs the VALUES clause for values to be inserted as designated
 	// columns.
 	//
 	// Example:
@@ -212,7 +212,7 @@ type Inserter interface {
 	//   q.Columns("first_name", "last_name", "age").Values("María", "Méndez", 18)
 	Values(values ...interface{}) Inserter
 
-	// Returning constructs a RETURNING clause to specify which columns should be
+	// Returning constructs the RETURNING clause to specify which columns should be
 	// returned upon successful insertion.
 	Returning(columns ...interface{}) Inserter
 
@@ -232,6 +232,38 @@ type Inserter interface {
 
 // Updater represents a SQL query builder for the UPDATE statement.
 type Updater interface {
+	// Set constructs the SET clause with pairs of key names and values.
+	//
+	// Examples:
+	//
+	//   q.Set("name", "John", "last_name", "Smith").Set("age", 18)
+	Set(kvs ...interface{}) Updater
+
+	// Where constructs the WHERE clause.
+	//
+	// See Selector.Where for documentation and usage examples.
+	Where(conds ...interface{}) Updater
+	// And appends more conditions to the WHERE clause.
+	//
+	// See Selector.And for documentation and usage examples.
+	And(conds ...interface{}) Updater
+
+	// Returning constructs the RETURNING clause to specify which columns should be
+	// returned upon successful update.
+	Returning(columns ...interface{}) Updater
+
+	// Amend alters the query string just before executing it.
+	Amend(func(query string) string) Updater
+
+	// Iterate creates an Iterator to iterate over query results. This is only
+	// possible when using Returning().
+	Iterate(ctx context.Context) Iterator
+	ResultMapper
+
+	// String returns a complied SQL query string.
+	String() string
+	// Arguments returns the arguments that are prepared for this query.
+	Arguments() []interface{}
 }
 
 // Deleter represents a SQL query builder for the DELETE statement.

@@ -38,12 +38,12 @@ type SQL interface {
 	//
 	//   q := db.InsertInto("users").Columns(...).Values(...)
 	InsertInto(table string) Inserter
-	// // Update creates an Updater targeted at the given table.
-	// //
-	// // Example:
-	// //
-	// //   q := db.Update("users").Set(...).Where(...)
-	// Update(table string) Updater
+	// Update creates an Updater targeted at the given table.
+	//
+	// Example:
+	//
+	//   q := db.Update("users").Set(...).Where(...)
+	Update(table string) Updater
 	// // DeleteFrom creates a Deleter targeted at the given table.
 	// //
 	// // Example:
