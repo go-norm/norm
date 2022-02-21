@@ -6,6 +6,8 @@
 package sqlbuilder
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 
 	"unknwon.dev/norm"
@@ -57,8 +59,7 @@ func (upd *updater) Set(kvs ...interface{}) norm.Updater {
 		args := make([]interface{}, 0, len(cvs))
 		for i := 0; i < len(kvs); i += 2 {
 			cv := exql.ColumnValue(kvs[i], upd.Builder().Layout(exql.LayoutAssignmentOperator), nil)
-
-			switch v := kvs[i].(type) {
+			switch v := kvs[i+1].(type) {
 			case *expr.RawExpr:
 				cv.Value = exql.Raw(v.Raw())
 				args = append(args, v.Arguments()...)
@@ -69,10 +70,13 @@ func (upd *updater) Set(kvs ...interface{}) norm.Updater {
 				}
 				cv.Value = exql.Raw(fnName)
 				args = append(args, fnArgs...)
+			case exql.Fragment:
+				cv.Value = v
 			default:
 				cv.Value = exql.Raw("?")
 				args = append(args, v)
 			}
+			cvs = append(cvs, cv)
 		}
 
 		uq.columnValues = append(uq.columnValues, cvs...)
@@ -100,12 +104,16 @@ func (upd *updater) And(conds ...interface{}) norm.Updater {
 	})
 }
 
-func (upd *updater) Limit(n int) norm.Updater {
-	if n <= 0 {
+func (upd *updater) Returning(columns ...interface{}) norm.Updater {
+	if len(columns) == 0 {
 		return upd
 	}
 	return upd.frame(func(uq *updaterQuery) error {
-		uq.limit = n
+		cs := make([]*exql.ColumnFragment, len(columns))
+		for i := range columns {
+			cs[i] = exql.Column(columns[i])
+		}
+		uq.returning = exql.Returning(cs...)
 		return nil
 	})
 }
@@ -115,6 +123,29 @@ func (upd *updater) Amend(fn func(string) string) norm.Updater {
 		uq.amendFn = fn
 		return nil
 	})
+}
+
+func (upd *updater) Iterate(ctx context.Context) norm.Iterator {
+	iq, err := upd.build()
+	if err != nil {
+		return &iterator{err: errors.Wrap(err, "build query")}
+	}
+
+	adapter := upd.Builder().Adapter
+	rows, err := adapter.Executor().Query(ctx, iq.statement(), upd.Arguments()...) //nolint:rowserrcheck
+	return &iterator{
+		adapter: adapter,
+		cursor:  rows,
+		err:     errors.Wrap(err, "execute query"),
+	}
+}
+
+func (upd *updater) All(ctx context.Context, destSlice interface{}) error {
+	return upd.Iterate(ctx).All(ctx, destSlice)
+}
+
+func (upd *updater) One(ctx context.Context, dest interface{}) error {
+	return upd.Iterate(ctx).One(ctx, dest)
 }
 
 func (upd *updater) String() string {
@@ -185,7 +216,7 @@ type updaterQuery struct {
 	where     *exql.WhereFragment
 	whereArgs []interface{}
 
-	limit int
+	returning *exql.ReturningFragment
 
 	amendFn func(string) string
 }
@@ -217,7 +248,7 @@ func (uq *updaterQuery) statement() *exql.Statement {
 		Table:        exql.Table(uq.table),
 		ColumnValues: exql.ColumnValues(uq.columnValues...),
 		Where:        uq.where,
-		Limit:        uq.limit,
+		Returning:    uq.returning,
 	}
 	stmt.SetAmend(uq.amendFn)
 	return stmt

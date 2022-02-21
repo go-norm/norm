@@ -236,7 +236,7 @@ type Updater interface {
 	//
 	// Examples:
 	//
-	//   q.Set("name", "John", "last_name", "Smith")
+	//   q.Set("name", "John", "last_name", "Smith").Set("age", 18)
 	Set(kvs ...interface{}) Updater
 
 	// Where constructs the WHERE clause.
@@ -248,13 +248,17 @@ type Updater interface {
 	// See Selector.And for documentation and usage examples.
 	And(conds ...interface{}) Updater
 
-	// Limit constructs the LIMIT clause.
-	//
-	// See Selector.Limit for documentation and usage examples.
-	Limit(n int) Updater
+	// Returning constructs the RETURNING clause to specify which columns should be
+	// returned upon successful update.
+	Returning(columns ...interface{}) Updater
 
 	// Amend alters the query string just before executing it.
 	Amend(func(query string) string) Updater
+
+	// Iterate creates an Iterator to iterate over query results. This is only
+	// possible when using Returning().
+	Iterate(ctx context.Context) Iterator
+	ResultMapper
 
 	// String returns a complied SQL query string.
 	String() string
