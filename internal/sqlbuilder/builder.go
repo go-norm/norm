@@ -44,3 +44,10 @@ func (b *sqlBuilder) InsertInto(table string) norm.Inserter {
 	}
 	return ins.Into(table)
 }
+
+func (b *sqlBuilder) Update(table string) norm.Updater {
+	upd := &updater{
+		builder: b,
+	}
+	return upd.Table(table)
+}

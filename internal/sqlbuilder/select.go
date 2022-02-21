@@ -112,7 +112,7 @@ func (sel *selector) Where(conds ...interface{}) norm.Selector {
 	}
 	return sel.frame(func(sq *selectorQuery) error {
 		sq.where, sq.whereArgs = nil, nil
-		return errors.Wrap(sq.and(sel.Builder().Template, conds...), "WhereFragment")
+		return errors.Wrap(sq.and(sel.Builder().Template, conds...), "Where")
 	})
 }
 
@@ -121,7 +121,7 @@ func (sel *selector) And(conds ...interface{}) norm.Selector {
 		return sel
 	}
 	return sel.frame(func(sq *selectorQuery) error {
-		return errors.Wrap(sq.and(sel.Builder().Template, conds...), "AndFragment")
+		return errors.Wrap(sq.and(sel.Builder().Template, conds...), "And")
 	})
 }
 
