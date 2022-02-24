@@ -44,12 +44,12 @@ type SQL interface {
 	//
 	//   q := db.Update("users").Set(...).Where(...)
 	Update(table string) Updater
-	// // DeleteFrom creates a Deleter targeted at the given table.
-	// //
-	// // Example:
-	// //
-	// //   q := db.DeleteFrom("users").Where(...)
-	// DeleteFrom(table string) Deleter
+	// DeleteFrom creates a Deleter targeted at the given table.
+	//
+	// Example:
+	//
+	//   q := db.DeleteFrom("users").Where(...)
+	DeleteFrom(table string) Deleter
 	// AlterTable() Alter
 	// Create() Creator
 	// Drop() Dropper
