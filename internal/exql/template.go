@@ -174,15 +174,9 @@ FROM {{.Table | compile}}
   {{end}}
 `
 		defaultDelete = `
-DELETE
-  FROM {{.Table | compile}}
-  {{.Where | compile}}
-{{if .Limit}}
-  LIMIT {{.Limit}}
-{{end}}
-{{if .Offset}}
-  OFFSET {{.Offset}}
-{{end}}
+DELETE FROM {{.Table | compile}}
+{{.Where | compile}}
+{{.Returning | compile}}
 `
 		defaultDescKeyword  = `DESC`
 		defaultDropDatabase = `DROP DATABASE {{.Database | compile}}`

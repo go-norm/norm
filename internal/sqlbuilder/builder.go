@@ -51,3 +51,10 @@ func (b *sqlBuilder) Update(table string) norm.Updater {
 	}
 	return upd.Table(table)
 }
+
+func (b *sqlBuilder) DeleteFrom(table string) norm.Deleter {
+	del := &deleter{
+		builder: b,
+	}
+	return del.Table(table)
+}

@@ -268,6 +268,31 @@ type Updater interface {
 
 // Deleter represents a SQL query builder for the DELETE statement.
 type Deleter interface {
+	// Where constructs the WHERE clause.
+	//
+	// See Selector.Where for documentation and usage examples.
+	Where(...interface{}) Deleter
+	// And appends more conditions to the WHERE clause.
+	//
+	// See Selector.And for documentation and usage examples.
+	And(conds ...interface{}) Deleter
+
+	// Returning constructs the RETURNING clause to specify which columns should be
+	// returned upon successful deletion.
+	Returning(columns ...interface{}) Deleter
+
+	// Amend alters the query string just before executing it.
+	Amend(func(query string) string) Deleter
+
+	// Iterate creates an Iterator to iterate over query results. This is only
+	// possible when using Returning().
+	Iterate(ctx context.Context) Iterator
+	ResultMapper
+
+	// String returns a complied SQL query string.
+	String() string
+	// Arguments returns the arguments that are prepared for this query.
+	Arguments() []interface{}
 }
 
 // Iterator defines a collection of methods to iterate over query results.
